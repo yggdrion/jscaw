@@ -1,6 +1,6 @@
 {
   "name": "@yggdrion/win-audio-sessions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
   "license": "MIT",
   "repository": {
@@ -31,8 +31,7 @@
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
     "test": "node --test",
-    "artifacts": "napi artifacts",
-    "prepublishOnly": "napi pre-publish -t npm"
+    "artifacts": "napi artifacts"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.8.6"
