@@ -1,0 +1,40 @@
+{
+  "name": "@r4b2/win-audio-sessions",
+  "version": "0.1.0",
+  "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yggdrion/win-audio-sessions.git"
+  },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "node": ">=20.17.0"
+  },
+  "napi": {
+    "binaryName": "win-audio-sessions",
+    "targets": [
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc"
+    ]
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "test": "node --test",
+    "artifacts": "napi artifacts",
+    "prepublishOnly": "napi prepublish -t npm"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.8.6"
+  },
+  "packageManager": "pnpm@11.24.0"
+}
