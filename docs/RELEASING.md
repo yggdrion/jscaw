@@ -24,6 +24,13 @@ Never run `npm publish` from a local machine.
    releases (default `GITHUB_TOKEN` permissions are sufficient; the workflow requests
    `contents: write`).
 
+## Before cutting a release
+
+Optional but recommended: `pnpm smoke-test` builds `main`, packs it into real tarballs, and
+installs+tests them via `bun add` in a scratch consumer project — a deeper check than the dry
+runs below, since it actually installs and runs the package rather than just inspecting what
+would be packed. See "Pre-Release Smoke Test" in [`AGENTS.md`](../AGENTS.md).
+
 ## Cutting a release
 
 From a clean, up-to-date `main`:
