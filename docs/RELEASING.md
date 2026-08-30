@@ -7,12 +7,19 @@ Never run `npm publish` from a local machine.
 
 1. **Create the npm scope.** `@yggdrion` must exist on npmjs.com before the first publish —
    create it at https://www.npmjs.com/org/create if it doesn't exist yet.
-2. **Authorize publishing**, either:
-   - **npm trusted publishing (recommended)**: on the package's npm settings page, add a
-     trusted publisher for this GitHub repository and the `CI.yml` workflow. No secret
-     needed — the `publish` job already requests `id-token: write` for OIDC.
-   - **Classic token**: create an npm automation token and add it as the `NPM_TOKEN`
-     repository secret. The `publish` job reads it via `NODE_AUTH_TOKEN`.
+2. **Authorize publishing.** The workflow uses npm trusted publishing (OIDC) — no secret
+   needed, the `publish` job already requests `id-token: write` and runs on Node 24 (npm
+   trusted publishing needs npm ≥11.5.1; Node 22 only bundles npm 10.x). Trusted publishers
+   are configured per package, so on npmjs.com, for **each** of the three packages —
+   `@yggdrion/win-audio-sessions`, `@yggdrion/win-audio-sessions-win32-x64-msvc`, and
+   `@yggdrion/win-audio-sessions-win32-arm64-msvc` — go to its **Settings → Trusted
+   Publisher → Add trusted publisher**, choose GitHub Actions, and fill in:
+   - Repository: `yggdrion/win-audio-sessions`
+   - Workflow filename: `CI.yml`
+   - Environment: leave blank
+   A package must already exist on npm before you can add a trusted publisher for it — all
+   three already do (published via a one-time classic `NPM_TOKEN` for the very first
+   release), so this is a one-time setup step, not needed again per release.
 3. Make sure the repository's Actions settings allow the `publish` job to create GitHub
    releases (default `GITHUB_TOKEN` permissions are sufficient; the workflow requests
    `contents: write`).
