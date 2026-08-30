@@ -1,6 +1,6 @@
 {
   "name": "jscaw",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
   "license": "MIT",
   "repository": {
