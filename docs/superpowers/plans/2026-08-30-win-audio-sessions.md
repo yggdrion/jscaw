@@ -81,8 +81,8 @@ IMMDeviceEnumerator
 
 ## Task 6: Documentation and ePad handoff
 
-- [ ] Add `examples/basic.ts` using `listSessions`, `setProcessVolume("Discord.exe", 0.3)`, and `setProcessMute("Discord.exe", false)`.
-- [ ] Document: Windows-only; active sessions only; all matching sessions change; v1 exclusions.
-- [ ] State that ePad will only replace `src/mixer.py`; Soundpad and WebSocket protocol work remain separate.
-- [ ] Run `cargo fmt --check`, `cargo clippy -- -D warnings`, `pnpm build`, `pnpm test`, `bun test`, and `git diff --check`.
-- [ ] Commit `docs: document Windows audio sessions package`.
+- [x] Add `examples/basic.ts` using `listSessions`, `setProcessVolume("Discord.exe", 0.3)`, and `setProcessMute("Discord.exe", false)`.
+- [x] Document: Windows-only; active sessions only; all matching sessions change; v1 exclusions.
+- [x] State that ePad will only replace `src/mixer.py`; Soundpad and WebSocket protocol work remain separate.
+- [x] Run `cargo fmt --check`, `cargo clippy -- -D warnings`, `pnpm build`, `pnpm test`, `bun test`, and `git diff --check`.
+- [x] Commit `docs: document Windows audio sessions package`.
