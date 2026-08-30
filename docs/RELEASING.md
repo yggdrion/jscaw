@@ -5,9 +5,8 @@ Never run `npm publish` from a local machine.
 
 ## One-time setup
 
-1. **Create the npm scope.** `@r4b2` must exist on npmjs.com (or be your personal scope)
-   before the first publish — create it at https://www.npmjs.com/org/create if it doesn't
-   exist yet.
+1. **Create the npm scope.** `@yggdrion` must exist on npmjs.com before the first publish —
+   create it at https://www.npmjs.com/org/create if it doesn't exist yet.
 2. **Authorize publishing**, either:
    - **npm trusted publishing (recommended)**: on the package's npm settings page, add a
      trusted publisher for this GitHub repository and the `CI.yml` workflow. No secret

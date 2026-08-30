@@ -1,5 +1,5 @@
 {
-  "name": "@r4b2/win-audio-sessions",
+  "name": "@yggdrion/win-audio-sessions",
   "version": "0.1.0",
   "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
   "license": "MIT",
@@ -20,7 +20,8 @@
     "targets": [
       "x86_64-pc-windows-msvc",
       "aarch64-pc-windows-msvc"
-    ]
+    ],
+    "packageName": "@yggdrion/win-audio-sessions"
   },
   "files": [
     "index.js",
