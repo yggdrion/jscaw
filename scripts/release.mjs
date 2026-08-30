@@ -74,4 +74,4 @@ run('git', ['tag', tag]);
 run('git', ['push', 'origin', 'main']);
 run('git', ['push', 'origin', tag]);
 
-console.log(`\nPushed ${tag} — CI will build, test, and publish it: https://github.com/yggdrion/win-audio-sessions/actions`);
+console.log(`\nPushed ${tag} — CI will build, test, and publish it: https://github.com/yggdrion/jscaw/actions`);

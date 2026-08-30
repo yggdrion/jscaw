@@ -5,22 +5,23 @@ Never run `npm publish` from a local machine.
 
 ## One-time setup
 
-1. **Create the npm scope.** `@yggdrion` must exist on npmjs.com before the first publish —
-   create it at https://www.npmjs.com/org/create if it doesn't exist yet.
-2. **Authorize publishing.** The workflow uses npm trusted publishing (OIDC) — no secret
+1. **Authorize publishing.** The workflow uses npm trusted publishing (OIDC) — no secret
    needed, the `publish` job already requests `id-token: write` and runs on Node 24 (npm
    trusted publishing needs npm ≥11.5.1; Node 22 only bundles npm 10.x). Trusted publishers
    are configured per package, so on npmjs.com, for **each** of the three packages —
-   `@yggdrion/win-audio-sessions`, `@yggdrion/win-audio-sessions-win32-x64-msvc`, and
-   `@yggdrion/win-audio-sessions-win32-arm64-msvc` — go to its **Settings → Trusted
-   Publisher → Add trusted publisher**, choose GitHub Actions, and fill in:
-   - Repository: `yggdrion/win-audio-sessions`
+   `jscaw`, `jscaw-win32-x64-msvc`, and `jscaw-win32-arm64-msvc` — go to its **Settings →
+   Trusted Publisher → Add trusted publisher**, choose GitHub Actions, and fill in:
+   - Repository: `yggdrion/jscaw`
    - Workflow filename: `CI.yml`
    - Environment: leave blank
-   A package must already exist on npm before you can add a trusted publisher for it — all
-   three already do (published via a one-time classic `NPM_TOKEN` for the very first
-   release), so this is a one-time setup step, not needed again per release.
-3. Make sure the repository's Actions settings allow the `publish` job to create GitHub
+   A package must already exist on npm before you can add a trusted publisher for it, so
+   this can only be done after the first release below. Until then, `CI.yml`'s `publish`
+   job carries a temporary `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` job env (see the
+   `TODO(bootstrap)` comment there) so that first release can publish without a trusted
+   publisher. Once all three packages exist and have a trusted publisher configured,
+   remove that env block and the `NPM_TOKEN` secret — this is a one-time setup step, not
+   needed again per release.
+2. Make sure the repository's Actions settings allow the `publish` job to create GitHub
    releases (default `GITHUB_TOKEN` permissions are sufficient; the workflow requests
    `contents: write`).
 

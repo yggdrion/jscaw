@@ -33,7 +33,7 @@ if (!['win32-x64-msvc', 'win32-arm64-msvc'].includes(target)) {
 }
 
 const repoRoot = process.cwd();
-const scratch = mkdtempSync(path.join(tmpdir(), 'wads-smoketest-'));
+const scratch = mkdtempSync(path.join(tmpdir(), 'jscaw-smoketest-'));
 const worktree = path.join(scratch, 'main');
 const tarballDir = path.join(scratch, 'tarballs');
 const consumer = path.join(scratch, 'consumer');
@@ -55,7 +55,7 @@ try {
   run('pnpm', ['build', '--release'], { cwd: worktree });
 
   step = 'locate built binary';
-  const builtBinary = path.join(worktree, `win-audio-sessions.${target}.node`);
+  const builtBinary = path.join(worktree, `jscaw.${target}.node`);
   if (!existsSync(builtBinary)) {
     throw new Error(`Expected build output missing: ${builtBinary}`);
   }
@@ -100,13 +100,13 @@ try {
   const exampleForConsumer = exampleSrc.replace(
     /\nconst updated = setProcessVolume[\s\S]*$/,
     `
-const targetProcess = process.env.WIN_AUDIO_SESSIONS_TEST_PROCESS;
+const targetProcess = process.env.JSCAW_TEST_PROCESS;
 if (targetProcess) {
   const updated = setProcessVolume(targetProcess, 0.3);
   console.log(\`set volume on \${updated} \${targetProcess} session(s)\`);
   setProcessMute(targetProcess, false);
 } else {
-  console.log('WIN_AUDIO_SESSIONS_TEST_PROCESS not set — skipping volume/mute example calls');
+  console.log('JSCAW_TEST_PROCESS not set — skipping volume/mute example calls');
 }
 `
   );

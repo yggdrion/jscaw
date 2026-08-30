@@ -28,11 +28,11 @@ test('setProcessMute returns 0 for an unmatched process', () => {
 });
 
 // Opt-in: mutates a real audio session, so it must never run unattended in CI.
-// Set WIN_AUDIO_SESSIONS_TEST_PROCESS to the executable name of a currently-playing app to run it.
+// Set JSCAW_TEST_PROCESS to the executable name of a currently-playing app to run it.
 test('setProcessVolume/setProcessMute update a real session and can be restored', (t) => {
-  const targetProcess = process.env.WIN_AUDIO_SESSIONS_TEST_PROCESS;
+  const targetProcess = process.env.JSCAW_TEST_PROCESS;
   if (!targetProcess) {
-    t.skip('set WIN_AUDIO_SESSIONS_TEST_PROCESS to a running process name to run this check');
+    t.skip('set JSCAW_TEST_PROCESS to a running process name to run this check');
     return;
   }
 

@@ -1,10 +1,10 @@
-# win-audio-sessions
+# jscaw
 
 Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list active Core
 Audio sessions and control per-process volume/mute. Works from Node.js and Bun.
 
 ```ts
-import { listSessions, setProcessMute, setProcessVolume } from '@yggdrion/win-audio-sessions';
+import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
 
 listSessions();
 // [{ pid: 1234, processName: 'Discord.exe', volume: 1, muted: false }, ...]

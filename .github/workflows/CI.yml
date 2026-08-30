@@ -9,7 +9,7 @@ on:
   pull_request:
 
 env:
-  APP_NAME: win-audio-sessions
+  APP_NAME: jscaw
 
 jobs:
   build:
@@ -102,6 +102,12 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    # TODO(bootstrap): jscaw and its platform packages have never been published, so npm
+    # can't attach a trusted publisher until they exist once. NODE_AUTH_TOKEN carries us
+    # through that first publish; remove this env block and the NPM_TOKEN secret once
+    # trusted publishing is configured for all three packages (see docs/RELEASING.md).
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10

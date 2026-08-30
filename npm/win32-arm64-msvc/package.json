@@ -1,12 +1,12 @@
 {
-  "name": "@yggdrion/win-audio-sessions-win32-arm64-msvc",
+  "name": "jscaw-win32-arm64-msvc",
   "version": "0.2.0",
   "cpu": [
     "arm64"
   ],
-  "main": "win-audio-sessions.win32-arm64-msvc.node",
+  "main": "jscaw.win32-arm64-msvc.node",
   "files": [
-    "win-audio-sessions.win32-arm64-msvc.node"
+    "jscaw.win32-arm64-msvc.node"
   ],
   "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
   "license": "MIT",
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yggdrion/win-audio-sessions.git"
+    "url": "git+https://github.com/yggdrion/jscaw.git"
   },
   "os": [
     "win32"
