@@ -1,4 +1,4 @@
-import { listSessions, setProcessMute, setProcessVolume } from '@yggdrion/win-audio-sessions';
+import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
 
 for (const session of listSessions()) {
   console.log(`${session.processName} (pid ${session.pid}): volume=${session.volume} muted=${session.muted}`);

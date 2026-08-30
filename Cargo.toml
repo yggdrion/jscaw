@@ -1,9 +1,9 @@
 [package]
-name = "win-audio-sessions"
+name = "jscaw"
 version = "0.2.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/yggdrion/win-audio-sessions"
+repository = "https://github.com/yggdrion/jscaw"
 
 [lib]
 crate-type = ["cdylib"]

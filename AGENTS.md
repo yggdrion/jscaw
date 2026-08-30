@@ -22,7 +22,7 @@ Use Rust 2021 conventions and rustfmt defaults (four-space indentation, `snake_c
 
 ## Testing Guidelines
 
-Tests use the built-in `node:test` runner with `node:assert/strict`. Name files `*.test.mjs` and test observable API behavior, including invalid inputs and unmatched processes. Tests must not mutate real sessions by default. The live check requires `WIN_AUDIO_SESSIONS_TEST_PROCESS` and must restore volume and mute state in `finally`. No coverage threshold is configured; add focused regression tests for changed behavior.
+Tests use the built-in `node:test` runner with `node:assert/strict`. Name files `*.test.mjs` and test observable API behavior, including invalid inputs and unmatched processes. Tests must not mutate real sessions by default. The live check requires `JSCAW_TEST_PROCESS` and must restore volume and mute state in `finally`. No coverage threshold is configured; add focused regression tests for changed behavior.
 
 ## Pre-Release Smoke Test
 

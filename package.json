@@ -1,11 +1,11 @@
 {
-  "name": "@yggdrion/win-audio-sessions",
+  "name": "jscaw",
   "version": "0.2.0",
   "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yggdrion/win-audio-sessions.git"
+    "url": "git+https://github.com/yggdrion/jscaw.git"
   },
   "main": "index.js",
   "types": "index.d.ts",
@@ -16,12 +16,12 @@
     "node": ">=22.13.0"
   },
   "napi": {
-    "binaryName": "win-audio-sessions",
+    "binaryName": "jscaw",
     "targets": [
       "x86_64-pc-windows-msvc",
       "aarch64-pc-windows-msvc"
     ],
-    "packageName": "@yggdrion/win-audio-sessions"
+    "packageName": "jscaw"
   },
   "files": [
     "index.js",
