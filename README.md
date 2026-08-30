@@ -4,7 +4,7 @@ Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list acti
 Audio sessions and control per-process volume/mute. Works from Node.js and Bun.
 
 ```ts
-import { listSessions, setProcessMute, setProcessVolume } from '@r4b2/win-audio-sessions';
+import { listSessions, setProcessMute, setProcessVolume } from '@yggdrion/win-audio-sessions';
 
 listSessions();
 // [{ pid: 1234, processName: 'Discord.exe', volume: 1, muted: false }, ...]

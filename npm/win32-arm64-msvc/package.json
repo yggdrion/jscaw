@@ -1,5 +1,5 @@
 {
-  "name": "@r4b2/win-audio-sessions-win32-arm64-msvc",
+  "name": "@yggdrion/win-audio-sessions-win32-arm64-msvc",
   "version": "0.1.0",
   "cpu": [
     "arm64"
