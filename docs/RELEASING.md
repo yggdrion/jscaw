@@ -14,9 +14,13 @@ Never run `npm publish` from a local machine.
    - Repository: `yggdrion/jscaw`
    - Workflow filename: `CI.yml`
    - Environment: leave blank
-   A package must already exist on npm before you can add a trusted publisher for it — all
-   three already do (published via a one-time classic `NPM_TOKEN` for the very first
-   release), so this is a one-time setup step, not needed again per release.
+   A package must already exist on npm before you can add a trusted publisher for it, so
+   this can only be done after the first release below. Until then, `CI.yml`'s `publish`
+   job carries a temporary `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` job env (see the
+   `TODO(bootstrap)` comment there) so that first release can publish without a trusted
+   publisher. Once all three packages exist and have a trusted publisher configured,
+   remove that env block and the `NPM_TOKEN` secret — this is a one-time setup step, not
+   needed again per release.
 2. Make sure the repository's Actions settings allow the `publish` job to create GitHub
    releases (default `GITHUB_TOKEN` permissions are sufficient; the workflow requests
    `contents: write`).
