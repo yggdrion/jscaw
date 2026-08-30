@@ -31,7 +31,8 @@
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
     "test": "node --test",
-    "artifacts": "napi artifacts"
+    "artifacts": "napi artifacts",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.8.6"
