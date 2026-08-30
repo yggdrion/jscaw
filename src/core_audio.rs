@@ -146,6 +146,32 @@ pub fn list_sessions() -> Result<Vec<AudioSessionInfo>> {
     })
 }
 
+fn matching_sessions(
+    process_name: &str,
+    mut apply: impl FnMut(&ISimpleAudioVolume) -> bool,
+) -> Result<u32> {
+    let updated = each_session(|pid, simple_volume| {
+        let name = process_name_for_pid(pid)?;
+        if !name.eq_ignore_ascii_case(process_name) {
+            return None;
+        }
+        apply(simple_volume).then_some(())
+    })?;
+    Ok(updated.len() as u32)
+}
+
+pub fn set_volume_for_process(process_name: &str, volume: f32) -> Result<u32> {
+    matching_sessions(process_name, |simple_volume| {
+        unsafe { simple_volume.SetMasterVolume(volume, std::ptr::null()) }.is_ok()
+    })
+}
+
+pub fn set_mute_for_process(process_name: &str, muted: bool) -> Result<u32> {
+    matching_sessions(process_name, |simple_volume| {
+        unsafe { simple_volume.SetMute(muted, std::ptr::null()) }.is_ok()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::validate_volume;

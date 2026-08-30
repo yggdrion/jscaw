@@ -26,12 +26,12 @@ pub fn list_sessions() -> napi::Result<Vec<AudioSession>> {
 }
 
 #[napi]
-pub fn set_process_volume(_process_name: String, volume: f64) -> napi::Result<u32> {
+pub fn set_process_volume(process_name: String, volume: f64) -> napi::Result<u32> {
     core_audio::validate_volume(volume)?;
-    Ok(0)
+    core_audio::set_volume_for_process(&process_name, volume as f32)
 }
 
 #[napi]
-pub fn set_process_mute(_process_name: String, _muted: bool) -> u32 {
-    0
+pub fn set_process_mute(process_name: String, muted: bool) -> napi::Result<u32> {
+    core_audio::set_mute_for_process(&process_name, muted)
 }
