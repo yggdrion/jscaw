@@ -1,6 +1,7 @@
 #![deny(clippy::all)]
 
-use napi::bindgen_prelude::*;
+mod core_audio;
+
 use napi_derive::napi;
 
 #[napi(object)]
@@ -11,24 +12,22 @@ pub struct AudioSession {
     pub muted: bool,
 }
 
-fn validate_volume(volume: f64) -> Result<()> {
-    if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
-        return Err(Error::new(
-            Status::InvalidArg,
-            format!("volume must be a finite number between 0 and 1, got {volume}"),
-        ));
-    }
-    Ok(())
+#[napi]
+pub fn list_sessions() -> napi::Result<Vec<AudioSession>> {
+    Ok(core_audio::list_sessions()?
+        .into_iter()
+        .map(|session| AudioSession {
+            pid: session.pid,
+            process_name: session.process_name,
+            volume: session.volume as f64,
+            muted: session.muted,
+        })
+        .collect())
 }
 
 #[napi]
-pub fn list_sessions() -> Vec<AudioSession> {
-    Vec::new()
-}
-
-#[napi]
-pub fn set_process_volume(_process_name: String, volume: f64) -> Result<u32> {
-    validate_volume(volume)?;
+pub fn set_process_volume(_process_name: String, volume: f64) -> napi::Result<u32> {
+    core_audio::validate_volume(volume)?;
     Ok(0)
 }
 
