@@ -31,7 +31,7 @@
     "build:debug": "napi build --platform",
     "test": "node --test",
     "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm"
+    "prepublishOnly": "napi pre-publish -t npm"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.8.6"
