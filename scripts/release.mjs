@@ -2,7 +2,7 @@
 // Cuts a release: bumps the version everywhere it needs to live in sync, commits, tags, and
 // pushes. Run from a clean main: `pnpm release patch|minor|major`.
 
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const bump = process.argv[2];
@@ -11,13 +11,23 @@ if (!['patch', 'minor', 'major'].includes(bump)) {
   process.exit(1);
 }
 
-function run(cmd, args, opts = {}) {
-  console.log(`$ ${cmd} ${args.join(' ')}`);
-  return execFileSync(cmd, args, { stdio: 'inherit', ...opts });
+// execSync always goes through a shell, so npm/pnpm's Windows .cmd shims resolve fine (unlike
+// execFileSync, which needs an explicit shell:true and then doesn't quote array args at all —
+// a bare space in an arg like a commit message silently splits into two shell tokens). We quote
+// each argument ourselves so spaces/parens/colons survive as a single token either way.
+function quote(arg) {
+  return /^[\w./:@-]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '\\"')}"`;
+}
+
+function run(cmd, args) {
+  const line = [cmd, ...args.map(quote)].join(' ');
+  console.log(`$ ${line}`);
+  execSync(line, { stdio: 'inherit' });
 }
 
 function runCapture(cmd, args) {
-  return execFileSync(cmd, args, { encoding: 'utf8' }).trim();
+  const line = [cmd, ...args.map(quote)].join(' ');
+  return execSync(line, { encoding: 'utf8' }).trim();
 }
 
 const branch = runCapture('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
