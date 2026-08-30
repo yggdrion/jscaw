@@ -78,16 +78,24 @@ fn process_name_for_pid(pid: u32) -> Option<String> {
     }
 }
 
-fn session_manager() -> Result<IAudioSessionManager2> {
+/// `GetDefaultAudioEndpoint` returns this HRESULT when the machine has no playback device at
+/// all (e.g. a headless CI runner) — a legitimate "no sessions" state, not a failure.
+const ERROR_NOT_FOUND_HRESULT: i32 = 0x8007_0490_u32 as i32;
+
+/// Returns `Ok(None)` when there is no default render device, rather than an error.
+fn session_manager() -> Result<Option<IAudioSessionManager2>> {
     unsafe {
         let device_enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
                 .map_err(|e| to_napi_err("failed to create audio device enumerator", e))?;
-        let device = device_enumerator
-            .GetDefaultAudioEndpoint(eRender, eConsole)
-            .map_err(|e| to_napi_err("failed to get default audio endpoint", e))?;
+        let device = match device_enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
+            Ok(device) => device,
+            Err(e) if e.code().0 == ERROR_NOT_FOUND_HRESULT => return Ok(None),
+            Err(e) => return Err(to_napi_err("failed to get default audio endpoint", e)),
+        };
         device
             .Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)
+            .map(Some)
             .map_err(|e| to_napi_err("failed to activate audio session manager", e))
     }
 }
@@ -95,9 +103,12 @@ fn session_manager() -> Result<IAudioSessionManager2> {
 /// Walks every active audio session on the default render endpoint, calling `visit` with
 /// each session's process id and volume control. Sessions with no resolvable process (dead
 /// process, access denied, system sounds) are skipped rather than failing the whole call.
+/// A machine with no default render device (e.g. headless CI) yields an empty result.
 fn each_session<T>(mut visit: impl FnMut(u32, &ISimpleAudioVolume) -> Option<T>) -> Result<Vec<T>> {
     let _com = ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))?;
-    let manager = session_manager()?;
+    let Some(manager) = session_manager()? else {
+        return Ok(Vec::new());
+    };
     let mut results = Vec::new();
     unsafe {
         let session_enumerator: IAudioSessionEnumerator = manager
