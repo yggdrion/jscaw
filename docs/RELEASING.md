@@ -26,13 +26,23 @@ Never run `npm publish` from a local machine.
 
 ## Cutting a release
 
-1. Bump `version` in `package.json` (the platform packages under `npm/*/package.json` are
-   rewritten automatically by `napi pre-publish` at publish time — don't hand-edit them).
-2. Commit the version bump.
-3. Tag it and push the tag: `git tag v0.2.0 && git push origin v0.2.0`.
-4. Pushing a `v*` tag triggers `CI.yml`: it builds both Windows targets, runs the Node and
-   Bun test jobs, and only if those pass does the `publish` job run `napi pre-publish` and
-   `npm publish --provenance`.
+From a clean, up-to-date `main`:
+
+```bash
+pnpm release patch   # or: minor / major
+```
+
+[`scripts/release.mjs`](../scripts/release.mjs) does the whole bump in one shot: pulls
+`main` (fast-forward only — it refuses to run on a stale local branch, which is what broke
+`v0.1.1`'s first tag), bumps `package.json`, syncs both `npm/*/package.json` platform
+packages and `Cargo.toml`/`Cargo.lock` to match, then commits, tags, and pushes. Don't
+hand-edit versions in any of those files — `napi pre-publish` copies build artifacts into
+the platform packages at publish time, but it does **not** rewrite their committed version,
+so they'd drift out of sync with `package.json` otherwise.
+
+Pushing the `v*` tag triggers `CI.yml`: it builds both Windows targets, runs the Node and
+Bun test jobs, and only if those pass does the `publish` job run `napi pre-publish` and
+`npm publish --provenance`.
 
 ## Local dry runs
 
