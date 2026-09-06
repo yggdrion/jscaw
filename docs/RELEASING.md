@@ -31,6 +31,10 @@ would be packed. See "Pre-Release Smoke Test" in [`AGENTS.md`](../AGENTS.md).
 
 ## Cutting a release
 
+### GitHub Actions
+
+In GitHub, open **Actions** → **Release** → **Run workflow**, choose the version bump, and run it from `main`. The workflow runs the same release script below, pushes the version commit and tag, then dispatches CI for that tag to publish it.
+
 From a clean, up-to-date `main`:
 
 ```bash
