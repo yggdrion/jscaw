@@ -9,7 +9,8 @@ Never run `npm publish` from a local machine.
    needed, the `publish` job already requests `id-token: write` and runs on Node 24 (npm
    trusted publishing needs npm ≥11.5.1; Node 22 only bundles npm 10.x). Trusted publishers
    are configured per package, so on npmjs.com, for **each** of the three packages —
-   `jscaw`, `jscaw-win32-x64-msvc`, and `jscaw-win32-arm64-msvc` — go to its **Settings →
+   `@yggdrion/jscaw`, `@yggdrion/jscaw-win32-x64-msvc`, and
+   `@yggdrion/jscaw-win32-arm64-msvc` — go to its **Settings →
    Trusted Publisher → Add trusted publisher**, choose GitHub Actions, and fill in:
    - Repository: `yggdrion/jscaw`
    - Workflow filename: `CI.yml`

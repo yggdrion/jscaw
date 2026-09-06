@@ -1,5 +1,5 @@
 {
-  "name": "jscaw-win32-x64-msvc",
+  "name": "@yggdrion/jscaw-win32-x64-msvc",
   "version": "0.2.3",
   "cpu": [
     "x64"
