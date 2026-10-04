@@ -15,14 +15,48 @@ import {
   stepEndpointVolume,
 } from '../index.js';
 
-test('listSessions returns an array of session-shaped objects', () => {
+const FLOWS = ['render', 'capture'];
+const STATES = ['active', 'disabled', 'notPresent', 'unplugged'];
+const SESSION_STATES = ['inactive', 'active', 'expired'];
+const GUID_RE = /^\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}$/;
+const assertSession = (s) => {
+  for (const key of ['pid', 'volume']) assert.equal(typeof s[key], 'number', key);
+  for (const key of ['processName', 'displayName', 'iconPath', 'sessionId', 'instanceId']) {
+    assert.equal(typeof s[key], 'string', key);
+  }
+  assert.equal(typeof s.muted, 'boolean');
+  assert.equal(typeof s.isSystemSounds, 'boolean');
+  assert.ok(SESSION_STATES.includes(s.state), `bad state ${s.state}`);
+  assert.ok(s.groupingParam === '' || GUID_RE.test(s.groupingParam), s.groupingParam);
+};
+
+test('listSessions returns rich sessions without system sounds by default', () => {
   const sessions = listSessions();
   assert.ok(Array.isArray(sessions));
-  for (const session of sessions) {
-    assert.equal(typeof session.pid, 'number');
-    assert.equal(typeof session.processName, 'string');
-    assert.equal(typeof session.volume, 'number');
-    assert.equal(typeof session.muted, 'boolean');
+  for (const s of sessions) {
+    assertSession(s);
+    assert.equal(s.isSystemSounds, false);
+    assert.ok(s.processName.length > 0);
+  }
+});
+
+test('listSessions includeSystemSounds adds only the system sounds session', () => {
+  const all = listSessions({ includeSystemSounds: true });
+  all.forEach(assertSession);
+  const system = all.filter((s) => s.isSystemSounds);
+  assert.ok(system.length <= 1);
+  for (const s of system) assert.equal(s.processName, '');
+  assert.ok(all.length >= listSessions().length);
+});
+
+test('listSessions returns [] for unknown devices', () => {
+  assert.deepEqual(listSessions({ deviceId: 'not-a-device-id' }), []);
+  assert.deepEqual(listSessions({ deviceId: '' }), []);
+});
+
+test('listSessions never throws for devices in any state', () => {
+  for (const device of listDevices({ state: STATES })) {
+    listSessions({ deviceId: device.id, includeSystemSounds: true }).forEach(assertSession);
   }
 });
 
@@ -75,8 +109,6 @@ test('setProcessVolume/setProcessMute update a real session and can be restored'
   }
 });
 
-const FLOWS = ['render', 'capture'];
-const STATES = ['active', 'disabled', 'notPresent', 'unplugged'];
 const assertDevice = (device) => {
   assert.equal(typeof device.id, 'string');
   assert.ok(device.id.length > 0);

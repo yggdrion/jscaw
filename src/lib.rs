@@ -8,26 +8,11 @@ mod sessions;
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
 use endpoint::{EndpointVolume, StepDirection};
 use napi_derive::napi;
-
-#[napi(object)]
-pub struct AudioSession {
-    pub pid: u32,
-    pub process_name: String,
-    pub volume: f64,
-    pub muted: bool,
-}
+use sessions::{AudioSession, ListSessionsOptions};
 
 #[napi]
-pub fn list_sessions() -> napi::Result<Vec<AudioSession>> {
-    Ok(sessions::list_sessions()?
-        .into_iter()
-        .map(|session| AudioSession {
-            pid: session.pid,
-            process_name: session.process_name,
-            volume: session.volume as f64,
-            muted: session.muted,
-        })
-        .collect())
+pub fn list_sessions(options: Option<ListSessionsOptions>) -> napi::Result<Vec<AudioSession>> {
+    sessions::list_sessions(options)
 }
 
 #[napi]
