@@ -6,8 +6,13 @@ import {
   getEndpointVolume,
   listDevices,
   listSessions,
+  setEndpointChannelVolume,
+  setEndpointMute,
+  setEndpointVolume,
+  setEndpointVolumeDb,
   setProcessMute,
   setProcessVolume,
+  stepEndpointVolume,
 } from '../index.js';
 
 test('listSessions returns an array of session-shaped objects', () => {
@@ -177,5 +182,76 @@ test('getEndpointVolume never throws for devices in any state', () => {
   for (const device of listDevices({ state: STATES })) {
     const ev = getEndpointVolume(device.id);
     if (ev !== null) assertEndpointVolume(ev);
+  }
+});
+
+const BAD_ID = 'not-a-device-id';
+
+test('endpoint setters reject invalid arguments even for unknown devices', () => {
+  for (const v of [-0.1, 1.1, NaN]) {
+    assert.throws(() => setEndpointVolume(v, BAD_ID));
+    assert.throws(() => setEndpointChannelVolume(0, v, BAD_ID));
+  }
+  for (const db of [NaN, Infinity, -Infinity]) {
+    assert.throws(() => setEndpointVolumeDb(db, BAD_ID));
+  }
+  assert.throws(() => stepEndpointVolume('sideways', BAD_ID));
+});
+
+test('endpoint setters return false for unknown devices', () => {
+  assert.equal(setEndpointVolume(0.5, BAD_ID), false);
+  assert.equal(setEndpointVolumeDb(0, BAD_ID), false);
+  assert.equal(setEndpointMute(true, BAD_ID), false);
+  assert.equal(setEndpointChannelVolume(0, 0.5, BAD_ID), false);
+  assert.equal(stepEndpointVolume('up', BAD_ID), false);
+});
+
+test('endpoint setters reject out-of-range dB and channel on a real device', () => {
+  const ev = getEndpointVolume();
+  if (ev === null) return; // no default render device (e.g. CI)
+  assert.throws(() => setEndpointVolumeDb(ev.range.maxDb + 1), /volumeDb must be between/);
+  assert.throws(() => setEndpointVolumeDb(ev.range.minDb - 1), /volumeDb must be between/);
+  assert.throws(() => setEndpointChannelVolume(ev.channels.length, 0.5), /out of range/);
+  assert.throws(() => setEndpointChannelVolume(-1, 0.5));
+});
+
+// Opt-in: mutates a real device's volume. Set JSCAW_TEST_DEVICE to a device id from listDevices().
+test('endpoint setters update a real device and can be restored', (t) => {
+  const deviceId = process.env.JSCAW_TEST_DEVICE;
+  if (!deviceId) {
+    t.skip('set JSCAW_TEST_DEVICE to a device id to run this check');
+    return;
+  }
+  const before = getEndpointVolume(deviceId);
+  assert.ok(before, `no endpoint volume for ${deviceId}`);
+  const close = (a, b, eps = 0.01) => Math.abs(a - b) < eps;
+
+  try {
+    assert.equal(setEndpointVolume(0.3, deviceId), true);
+    assert.ok(close(getEndpointVolume(deviceId).volume, 0.3));
+
+    assert.equal(setEndpointMute(true, deviceId), true);
+    assert.equal(getEndpointVolume(deviceId).muted, true);
+    assert.equal(setEndpointMute(false, deviceId), true);
+    assert.equal(getEndpointVolume(deviceId).muted, false);
+
+    assert.equal(setEndpointVolumeDb(before.range.minDb, deviceId), true);
+    assert.ok(close(getEndpointVolume(deviceId).volumeDb, before.range.minDb, 0.5));
+
+    const { step } = getEndpointVolume(deviceId);
+    assert.equal(stepEndpointVolume('up', deviceId), true);
+    if (step.current < step.count - 1) {
+      assert.ok(getEndpointVolume(deviceId).step.current > step.current);
+    }
+    assert.equal(stepEndpointVolume('down', deviceId), true);
+
+    if (before.channels.length > 0) {
+      assert.equal(setEndpointChannelVolume(0, 0.2, deviceId), true);
+      assert.ok(close(getEndpointVolume(deviceId).channels[0].volume, 0.2));
+    }
+  } finally {
+    setEndpointVolume(before.volume, deviceId);
+    before.channels.forEach((ch, i) => setEndpointChannelVolume(i, ch.volume, deviceId));
+    setEndpointMute(before.muted, deviceId);
   }
 });

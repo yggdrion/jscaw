@@ -1,6 +1,7 @@
-use crate::com::{resolve_device, to_napi_err, ComGuard, ERROR_NOT_FOUND_HRESULT};
-use napi::Result;
+use crate::com::{resolve_device, to_napi_err, validate_volume, ComGuard, ERROR_NOT_FOUND_HRESULT};
+use napi::{Error, Result, Status};
 use napi_derive::napi;
+use std::ptr::null;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::System::Com::CLSCTX_ALL;
 
@@ -105,4 +106,121 @@ pub fn get_endpoint_volume(device_id: Option<&str>) -> Result<Option<EndpointVol
             hardware_support: ep.QueryHardwareSupport().map_err(err)?,
         })
     })
+}
+
+#[napi(string_enum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepDirection {
+    #[napi(value = "up")]
+    Up,
+    #[napi(value = "down")]
+    Down,
+}
+
+pub fn validate_db(db: f64, min_db: f32, max_db: f32) -> Result<()> {
+    if !db.is_finite() || db < min_db as f64 || db > max_db as f64 {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("volumeDb must be between {min_db} and {max_db} dB, got {db}"),
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_channel(channel: u32, count: u32) -> Result<()> {
+    if channel >= count {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("channel {channel} is out of range; the device has {count} channel(s)"),
+        ));
+    }
+    Ok(())
+}
+
+/// Setters report `true` when applied and `false` when the device doesn't exist.
+fn applied(result: Result<Option<()>>) -> Result<bool> {
+    result.map(|done| done.is_some())
+}
+
+pub fn set_volume(volume: f64, device_id: Option<&str>) -> Result<bool> {
+    validate_volume(volume)?;
+    applied(with_endpoint(device_id, |ep| {
+        unsafe { ep.SetMasterVolumeLevelScalar(volume as f32, null()) }
+            .map_err(|e| to_napi_err("failed to set endpoint volume", e))
+    }))
+}
+
+pub fn set_volume_db(db: f64, device_id: Option<&str>) -> Result<bool> {
+    // Reject NaN/Infinity up front so they throw even for an unknown device.
+    if !db.is_finite() {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("volumeDb must be a finite number, got {db}"),
+        ));
+    }
+    applied(with_endpoint(device_id, |ep| {
+        let (min_db, max_db, _) = volume_range(ep)?;
+        validate_db(db, min_db, max_db)?;
+        unsafe { ep.SetMasterVolumeLevel(db as f32, null()) }
+            .map_err(|e| to_napi_err("failed to set endpoint volume (dB)", e))
+    }))
+}
+
+pub fn set_mute(muted: bool, device_id: Option<&str>) -> Result<bool> {
+    applied(with_endpoint(device_id, |ep| {
+        unsafe { ep.SetMute(muted, null()) }
+            .map_err(|e| to_napi_err("failed to set endpoint mute", e))
+    }))
+}
+
+pub fn set_channel_volume(channel: u32, volume: f64, device_id: Option<&str>) -> Result<bool> {
+    validate_volume(volume)?;
+    applied(with_endpoint(device_id, |ep| {
+        let count = unsafe { ep.GetChannelCount() }
+            .map_err(|e| to_napi_err("failed to read endpoint channel count", e))?;
+        validate_channel(channel, count)?;
+        unsafe { ep.SetChannelVolumeLevelScalar(channel, volume as f32, null()) }
+            .map_err(|e| to_napi_err("failed to set endpoint channel volume", e))
+    }))
+}
+
+pub fn step(direction: StepDirection, device_id: Option<&str>) -> Result<bool> {
+    applied(with_endpoint(device_id, |ep| {
+        unsafe {
+            match direction {
+                StepDirection::Up => ep.VolumeStepUp(null()),
+                StepDirection::Down => ep.VolumeStepDown(null()),
+            }
+        }
+        .map_err(|e| to_napi_err("failed to step endpoint volume", e))
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_channel, validate_db};
+
+    #[test]
+    fn db_inside_range_is_ok() {
+        assert!(validate_db(-10.0, -65.25, 0.0).is_ok());
+        assert!(validate_db(-65.25, -65.25, 0.0).is_ok());
+        assert!(validate_db(0.0, -65.25, 0.0).is_ok());
+    }
+
+    #[test]
+    fn db_outside_range_or_non_finite_is_rejected() {
+        assert!(validate_db(0.01, -65.25, 0.0).is_err());
+        assert!(validate_db(-65.3, -65.25, 0.0).is_err());
+        assert!(validate_db(f64::NAN, -65.25, 0.0).is_err());
+        assert!(validate_db(f64::INFINITY, -65.25, 0.0).is_err());
+    }
+
+    #[test]
+    fn channel_must_be_below_count() {
+        assert!(validate_channel(0, 2).is_ok());
+        assert!(validate_channel(1, 2).is_ok());
+        assert!(validate_channel(2, 2).is_err());
+        assert!(validate_channel(u32::MAX, 2).is_err());
+        assert!(validate_channel(0, 0).is_err());
+    }
 }
