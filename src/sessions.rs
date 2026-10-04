@@ -1,14 +1,12 @@
-use napi::{Error, Result, Status};
+use crate::com::{resolve_device, to_napi_err, ComGuard};
+use napi::Result;
 use std::path::Path;
 use windows::core::{Interface, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, MAX_PATH};
 use windows::Win32::Media::Audio::{
-    eConsole, eRender, IAudioSessionControl2, IAudioSessionEnumerator, IAudioSessionManager2,
-    IMMDeviceEnumerator, ISimpleAudioVolume, MMDeviceEnumerator,
+    IAudioSessionControl2, IAudioSessionEnumerator, IAudioSessionManager2, ISimpleAudioVolume,
 };
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
-};
+use windows::Win32::System::Com::CLSCTX_ALL;
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -18,44 +16,6 @@ pub struct AudioSessionInfo {
     pub process_name: String,
     pub volume: f32,
     pub muted: bool,
-}
-
-pub fn validate_volume(volume: f64) -> Result<()> {
-    if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
-        return Err(Error::new(
-            Status::InvalidArg,
-            format!("volume must be a finite number between 0 and 1, got {volume}"),
-        ));
-    }
-    Ok(())
-}
-
-fn to_napi_err(context: &str, err: windows::core::Error) -> Error {
-    Error::new(
-        Status::GenericFailure,
-        format!(
-            "{context}: {} (0x{:08X})",
-            err.message(),
-            err.code().0 as u32
-        ),
-    )
-}
-
-/// RAII guard: initializes COM for this thread on construction, uninitializes on drop.
-/// napi-rs runs each synchronous call on a fresh worker thread, so this is cheap.
-struct ComGuard;
-
-impl ComGuard {
-    fn new() -> windows::core::Result<Self> {
-        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? };
-        Ok(Self)
-    }
-}
-
-impl Drop for ComGuard {
-    fn drop(&mut self) {
-        unsafe { CoUninitialize() };
-    }
 }
 
 fn process_name_for_pid(pid: u32) -> Option<String> {
@@ -78,26 +38,14 @@ fn process_name_for_pid(pid: u32) -> Option<String> {
     }
 }
 
-/// `GetDefaultAudioEndpoint` returns this HRESULT when the machine has no playback device at
-/// all (e.g. a headless CI runner) — a legitimate "no sessions" state, not a failure.
-const ERROR_NOT_FOUND_HRESULT: i32 = 0x8007_0490_u32 as i32;
-
 /// Returns `Ok(None)` when there is no default render device, rather than an error.
 fn session_manager() -> Result<Option<IAudioSessionManager2>> {
-    unsafe {
-        let device_enumerator: IMMDeviceEnumerator =
-            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
-                .map_err(|e| to_napi_err("failed to create audio device enumerator", e))?;
-        let device = match device_enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
-            Ok(device) => device,
-            Err(e) if e.code().0 == ERROR_NOT_FOUND_HRESULT => return Ok(None),
-            Err(e) => return Err(to_napi_err("failed to get default audio endpoint", e)),
-        };
-        device
-            .Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)
-            .map(Some)
-            .map_err(|e| to_napi_err("failed to activate audio session manager", e))
-    }
+    let Some(device) = resolve_device(None)? else {
+        return Ok(None);
+    };
+    unsafe { device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None) }
+        .map(Some)
+        .map_err(|e| to_napi_err("failed to activate audio session manager", e))
 }
 
 /// Walks every active audio session on the default render endpoint, calling `visit` with
@@ -181,24 +129,4 @@ pub fn set_mute_for_process(process_name: &str, muted: bool) -> Result<u32> {
     matching_sessions(process_name, |simple_volume| {
         unsafe { simple_volume.SetMute(muted, std::ptr::null()) }.is_ok()
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::validate_volume;
-
-    #[test]
-    fn accepts_mid_range_volume() {
-        assert!(validate_volume(0.5).is_ok());
-    }
-
-    #[test]
-    fn rejects_below_zero() {
-        assert!(validate_volume(-0.01).is_err());
-    }
-
-    #[test]
-    fn rejects_above_one() {
-        assert!(validate_volume(1.01).is_err());
-    }
 }
