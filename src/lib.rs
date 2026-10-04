@@ -8,7 +8,7 @@ mod sessions;
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
 use endpoint::{EndpointVolume, StepDirection};
 use napi_derive::napi;
-use sessions::{AudioSession, ListSessionsOptions};
+use sessions::{AudioSession, ListSessionsOptions, SessionTarget};
 
 #[napi]
 pub fn list_sessions(options: Option<ListSessionsOptions>) -> napi::Result<Vec<AudioSession>> {
@@ -17,13 +17,22 @@ pub fn list_sessions(options: Option<ListSessionsOptions>) -> napi::Result<Vec<A
 
 #[napi]
 pub fn set_process_volume(process_name: String, volume: f64) -> napi::Result<u32> {
-    com::validate_volume(volume)?;
-    sessions::set_volume_for_process(&process_name, volume as f32)
+    sessions::set_volume(SessionTarget::process(process_name), volume)
 }
 
 #[napi]
 pub fn set_process_mute(process_name: String, muted: bool) -> napi::Result<u32> {
-    sessions::set_mute_for_process(&process_name, muted)
+    sessions::set_mute(SessionTarget::process(process_name), muted)
+}
+
+#[napi]
+pub fn set_session_volume(target: SessionTarget, volume: f64) -> napi::Result<u32> {
+    sessions::set_volume(target, volume)
+}
+
+#[napi]
+pub fn set_session_mute(target: SessionTarget, muted: bool) -> napi::Result<u32> {
+    sessions::set_mute(target, muted)
 }
 
 #[napi]

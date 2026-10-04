@@ -12,6 +12,8 @@ import {
   setEndpointVolumeDb,
   setProcessMute,
   setProcessVolume,
+  setSessionMute,
+  setSessionVolume,
   stepEndpointVolume,
 } from '../index.js';
 
@@ -106,6 +108,64 @@ test('setProcessVolume/setProcessMute update a real session and can be restored'
       setProcessVolume(session.processName, session.volume);
       setProcessMute(session.processName, session.muted);
     }
+  }
+});
+
+const BAD_TARGETS = [
+  {},
+  { deviceId: 'x' },
+  { pid: 1, processName: 'x.exe' },
+  { processName: 'x.exe', instanceId: 'y' },
+  { pid: 1, instanceId: 'y' },
+];
+const UNMATCHED_TARGETS = [
+  { pid: 4294967290 },
+  { processName: 'does-not-exist.exe' },
+  { instanceId: 'no-such-instance' },
+  { processName: 'does-not-exist.exe', deviceId: 'not-a-device-id' },
+];
+
+test('session setters reject malformed targets', () => {
+  for (const target of BAD_TARGETS) {
+    assert.throws(() => setSessionVolume(target, 0.5), /exactly one/);
+    assert.throws(() => setSessionMute(target, true), /exactly one/);
+  }
+  assert.throws(() => setSessionVolume(null, 0.5));
+});
+
+test('setSessionVolume rejects invalid volume even when nothing matches', () => {
+  for (const v of [-0.1, 1.1, NaN]) {
+    assert.throws(() => setSessionVolume({ processName: 'does-not-exist.exe' }, v));
+  }
+});
+
+test('session setters return 0 when nothing matches', () => {
+  for (const target of UNMATCHED_TARGETS) {
+    assert.equal(setSessionVolume(target, 0.5), 0);
+    assert.equal(setSessionMute(target, true), 0);
+  }
+});
+
+test('session setters target by instanceId and pid and can be restored', (t) => {
+  const targetProcess = process.env.JSCAW_TEST_PROCESS;
+  if (!targetProcess) {
+    t.skip('set JSCAW_TEST_PROCESS to a running process name to run this check');
+    return;
+  }
+  const s = listSessions().find((x) => x.processName.toLowerCase() === targetProcess.toLowerCase());
+  assert.ok(s, `no active audio session found for ${targetProcess}`);
+  const target = { instanceId: s.instanceId };
+  const find = () => listSessions().find((x) => x.instanceId === s.instanceId);
+  try {
+    assert.equal(setSessionVolume(target, 0.25), 1);
+    assert.ok(Math.abs(find().volume - 0.25) < 0.01);
+    assert.equal(setSessionMute(target, !s.muted), 1);
+    assert.equal(find().muted, !s.muted);
+    assert.ok(setSessionMute({ pid: s.pid }, s.muted) >= 1);
+    assert.equal(find().muted, s.muted);
+  } finally {
+    setSessionVolume(target, s.volume);
+    setSessionMute(target, s.muted);
   }
 });
 

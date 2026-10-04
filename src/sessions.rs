@@ -1,9 +1,11 @@
 use crate::com::{
-    activate, is_missing_device, resolve_device, take_co_string, to_napi_err, ComGuard,
+    activate, is_missing_device, resolve_device, take_co_string, to_napi_err, validate_volume,
+    ComGuard,
 };
-use napi::Result;
+use napi::{Error, Result, Status};
 use napi_derive::napi;
 use std::path::Path;
+use std::ptr::null;
 use windows::core::{Interface, GUID, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, MAX_PATH, S_OK};
 use windows::Win32::Media::Audio::{
@@ -177,30 +179,91 @@ pub fn list_sessions(options: Option<ListSessionsOptions>) -> Result<Vec<AudioSe
     })
 }
 
-fn matching_sessions(
-    process_name: &str,
-    mut apply: impl FnMut(&ISimpleAudioVolume) -> bool,
-) -> Result<u32> {
-    let updated = each_session(None, |control, pid| {
-        let name = process_name_for_pid(pid)?;
-        if !name.eq_ignore_ascii_case(process_name) {
-            return None;
-        }
-        let simple_volume = control.cast::<ISimpleAudioVolume>().ok()?;
-        apply(&simple_volume).then_some(())
-    })?;
-    Ok(updated.len() as u32)
+/// Exactly one of `pid`, `processName` or `instanceId`, plus an optional `deviceId`
+/// (default render endpoint when omitted).
+#[napi(object)]
+pub struct SessionTarget {
+    pub pid: Option<u32>,
+    pub process_name: Option<String>,
+    pub instance_id: Option<String>,
+    pub device_id: Option<String>,
 }
 
-pub fn set_volume_for_process(process_name: &str, volume: f32) -> Result<u32> {
-    matching_sessions(process_name, |simple_volume| {
-        unsafe { simple_volume.SetMasterVolume(volume, std::ptr::null()) }.is_ok()
+#[derive(Debug, PartialEq, Eq)]
+enum Matcher {
+    Pid(u32),
+    ProcessName(String),
+    InstanceId(String),
+}
+
+impl SessionTarget {
+    pub fn process(process_name: String) -> Self {
+        Self {
+            pid: None,
+            process_name: Some(process_name),
+            instance_id: None,
+            device_id: None,
+        }
+    }
+
+    fn into_matcher(self) -> Result<(Matcher, Option<String>)> {
+        let matcher = match (self.pid, self.process_name, self.instance_id) {
+            (Some(pid), None, None) => Matcher::Pid(pid),
+            (None, Some(name), None) => Matcher::ProcessName(name),
+            (None, None, Some(id)) => Matcher::InstanceId(id),
+            _ => {
+                return Err(Error::new(
+                    Status::InvalidArg,
+                    "session target must set exactly one of pid, processName or instanceId"
+                        .to_string(),
+                ))
+            }
+        };
+        Ok((matcher, self.device_id))
+    }
+}
+
+impl Matcher {
+    /// Only `ProcessName` needs the owning process, so `Pid`/`InstanceId` still reach
+    /// sessions whose process has exited or is inaccessible.
+    fn matches(&self, control: &IAudioSessionControl2, pid: u32) -> bool {
+        match self {
+            Self::Pid(target) => *target == pid,
+            Self::ProcessName(name) => {
+                process_name_for_pid(pid).is_some_and(|n| n.eq_ignore_ascii_case(name))
+            }
+            Self::InstanceId(id) => {
+                !id.is_empty()
+                    && read_string(unsafe { control.GetSessionInstanceIdentifier() }) == *id
+            }
+        }
+    }
+}
+
+/// Calls `apply` on every session matching `target`; returns how many accepted it.
+fn apply_to(
+    target: SessionTarget,
+    mut apply: impl FnMut(&IAudioSessionControl2) -> windows::core::Result<()>,
+) -> Result<u32> {
+    let (matcher, device_id) = target.into_matcher()?;
+    let applied = each_session(device_id.as_deref(), |control, pid| {
+        (matcher.matches(control, pid) && apply(control).is_ok()).then_some(())
+    })?;
+    Ok(applied.len() as u32)
+}
+
+pub fn set_volume(target: SessionTarget, volume: f64) -> Result<u32> {
+    validate_volume(volume)?;
+    apply_to(target, |control| unsafe {
+        control
+            .cast::<ISimpleAudioVolume>()?
+            .SetMasterVolume(volume as f32, null())
     })
 }
 
-pub fn set_mute_for_process(process_name: &str, muted: bool) -> Result<u32> {
-    matching_sessions(process_name, |simple_volume| {
-        unsafe { simple_volume.SetMute(muted, std::ptr::null()) }.is_ok()
+pub fn set_mute(target: SessionTarget, muted: bool) -> Result<u32> {
+    apply_to(target, |control| unsafe {
+        control.cast::<ISimpleAudioVolume>()?.SetMute(muted, null())
     })
 }
 
@@ -229,5 +292,31 @@ mod tests {
     fn guid_formats_braced_uppercase() {
         let guid = GUID::from_u128(0x6a1d3b2c_0000_4000_8000_00000000c0de);
         assert_eq!(format_guid(guid), "{6A1D3B2C-0000-4000-8000-00000000C0DE}");
+    }
+
+    #[test]
+    fn target_requires_exactly_one_selector() {
+        let t = |pid, name: Option<&str>, id: Option<&str>| SessionTarget {
+            pid,
+            process_name: name.map(String::from),
+            instance_id: id.map(String::from),
+            device_id: Some("dev".into()),
+        };
+        assert_eq!(
+            t(Some(4), None, None).into_matcher().unwrap(),
+            (Matcher::Pid(4), Some("dev".into()))
+        );
+        assert_eq!(
+            t(None, Some("a.exe"), None).into_matcher().unwrap().0,
+            Matcher::ProcessName("a.exe".into())
+        );
+        assert_eq!(
+            t(None, None, Some("i")).into_matcher().unwrap().0,
+            Matcher::InstanceId("i".into())
+        );
+        assert!(t(None, None, None).into_matcher().is_err());
+        assert!(t(Some(4), Some("a.exe"), None).into_matcher().is_err());
+        assert!(t(Some(4), None, Some("i")).into_matcher().is_err());
+        assert!(t(None, Some("a.exe"), Some("i")).into_matcher().is_err());
     }
 }
