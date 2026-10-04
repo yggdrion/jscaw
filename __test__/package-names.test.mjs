@@ -4,15 +4,15 @@ import { test } from 'node:test';
 
 const readPackage = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
 
-test('npm package manifests use the yggdrion scope', () => {
+test('npm package manifests use the unscoped jscaw names', () => {
   const root = readPackage('../package.json');
   const x64 = readPackage('../npm/win32-x64-msvc/package.json');
   const arm64 = readPackage('../npm/win32-arm64-msvc/package.json');
 
-  assert.equal(root.name, '@yggdrion/jscaw');
-  assert.equal(root.napi.packageName, '@yggdrion/jscaw');
-  assert.equal(x64.name, '@yggdrion/jscaw-win32-x64-msvc');
-  assert.equal(arm64.name, '@yggdrion/jscaw-win32-arm64-msvc');
+  assert.equal(root.name, 'jscaw');
+  assert.equal(root.napi.packageName, 'jscaw');
+  assert.equal(x64.name, 'jscaw-win32-x64-msvc');
+  assert.equal(arm64.name, 'jscaw-win32-arm64-msvc');
 });
 
 test('publish workflow uses npm OIDC without a token fallback', () => {

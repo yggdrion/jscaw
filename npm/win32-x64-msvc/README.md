@@ -1,3 +1,3 @@
-# `@yggdrion/jscaw-win32-x64-msvc`
+# `jscaw-win32-x64-msvc`
 
-This is the **x86_64-pc-windows-msvc** binary for `@yggdrion/jscaw`.
+This is the **x86_64-pc-windows-msvc** binary for `jscaw`.

@@ -1,5 +1,5 @@
 {
-  "name": "@yggdrion/jscaw",
+  "name": "jscaw",
   "version": "0.3.0",
   "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
   "license": "MIT",
@@ -21,7 +21,7 @@
       "x86_64-pc-windows-msvc",
       "aarch64-pc-windows-msvc"
     ],
-    "packageName": "@yggdrion/jscaw"
+    "packageName": "jscaw"
   },
   "files": [
     "index.js",
