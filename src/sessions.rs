@@ -183,7 +183,9 @@ pub fn list_sessions(options: Option<ListSessionsOptions>) -> Result<Vec<AudioSe
 /// (default render endpoint when omitted).
 #[napi(object)]
 pub struct SessionTarget {
-    pub pid: Option<u32>,
+    /// Taken as a JS number and checked here: napi's `u32` conversion silently turns NaN into 0
+    /// (system sounds) and -1 into `u32::MAX`.
+    pub pid: Option<f64>,
     pub process_name: Option<String>,
     pub instance_id: Option<String>,
     pub device_id: Option<String>,
@@ -194,6 +196,16 @@ enum Matcher {
     Pid(u32),
     ProcessName(String),
     InstanceId(String),
+}
+
+fn validate_pid(pid: f64) -> Result<u32> {
+    if pid.fract() != 0.0 || !(0.0..=u32::MAX as f64).contains(&pid) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("pid must be a non-negative integer, got {pid}"),
+        ));
+    }
+    Ok(pid as u32)
 }
 
 impl SessionTarget {
@@ -208,7 +220,7 @@ impl SessionTarget {
 
     fn into_matcher(self) -> Result<(Matcher, Option<String>)> {
         let matcher = match (self.pid, self.process_name, self.instance_id) {
-            (Some(pid), None, None) => Matcher::Pid(pid),
+            (Some(pid), None, None) => Matcher::Pid(validate_pid(pid)?),
             (None, Some(name), None) => Matcher::ProcessName(name),
             (None, None, Some(id)) => Matcher::InstanceId(id),
             _ => {
@@ -345,7 +357,7 @@ mod tests {
             device_id: Some("dev".into()),
         };
         assert_eq!(
-            t(Some(4), None, None).into_matcher().unwrap(),
+            t(Some(4.0), None, None).into_matcher().unwrap(),
             (Matcher::Pid(4), Some("dev".into()))
         );
         assert_eq!(
@@ -357,9 +369,13 @@ mod tests {
             Matcher::InstanceId("i".into())
         );
         assert!(t(None, None, None).into_matcher().is_err());
-        assert!(t(Some(4), Some("a.exe"), None).into_matcher().is_err());
-        assert!(t(Some(4), None, Some("i")).into_matcher().is_err());
+        assert!(t(Some(4.0), Some("a.exe"), None).into_matcher().is_err());
+        assert!(t(Some(4.0), None, Some("i")).into_matcher().is_err());
         assert!(t(None, Some("a.exe"), Some("i")).into_matcher().is_err());
+        for bad in [f64::NAN, f64::INFINITY, -1.0, 1.5, 4294967296.0] {
+            assert!(t(Some(bad), None, None).into_matcher().is_err(), "{bad}");
+        }
+        assert!(t(Some(4294967295.0), None, None).into_matcher().is_ok());
     }
 
     #[test]

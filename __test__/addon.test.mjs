@@ -135,6 +135,9 @@ test('session setters reject malformed targets', () => {
     assert.throws(() => setSessionMute(target, true), /exactly one/);
   }
   assert.throws(() => setSessionVolume(null, 0.5));
+  for (const pid of [NaN, Infinity, -1, 1.5, 2 ** 32]) {
+    assert.throws(() => setSessionMute({ pid }, true), /pid must be/);
+  }
 });
 
 test('setSessionVolume rejects invalid volume even when nothing matches', () => {
