@@ -63,7 +63,9 @@ device is missing, disabled or unplugged; invalid values throw.
 
 ```ts
 import {
+  getSessionChannelVolumes,
   listSessions,
+  setSessionChannelVolume,
   setSessionDisplayName,
   setSessionDuckingPreference,
   setSessionGroupingParam,
@@ -81,6 +83,8 @@ setSessionDisplayName({ instanceId }, 'Game audio');
 setSessionIconPath({ instanceId }, 'C:\\game\\icon.ico');
 setSessionGroupingParam({ instanceId }, '{6A1D3B2C-0000-4000-8000-00000000C0DE}');
 setSessionDuckingPreference({ processName: 'Spotify.exe' }, true); // opt out of ducking
+getSessionChannelVolumes({ processName: 'Discord.exe' }); // [[1, 1], [0.5, 0.5]] — one array per session
+setSessionChannelVolume({ instanceId }, 0, 0.5); // left channel to 50%
 ```
 
 `listSessions` defaults to the default render device and hides the system sounds session
@@ -93,6 +97,8 @@ Setters take a `SessionTarget`: exactly one of `{ pid }`, `{ processName }` (cas
 or `{ instanceId }`, plus an optional `deviceId`. Anything else throws. Each returns the number
 of sessions changed, `0` when nothing matches or the device is missing.
 `setProcessVolume(name, v)`/`setProcessMute(name, m)` are shorthands for `{ processName }`.
+Channel volumes are 0..1 scalars relative to the session volume; `setSessionChannelVolume`
+skips (and doesn't count) sessions that don't have the requested channel.
 
 See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts),
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts) and
