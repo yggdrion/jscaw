@@ -1,16 +1,8 @@
-use crate::com::{resolve_device, to_napi_err, validate_volume, ComGuard, ERROR_NOT_FOUND_HRESULT};
+use crate::com::{activate, resolve_device, to_napi_err, validate_volume, ComGuard};
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use std::ptr::null;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
-use windows::Win32::System::Com::CLSCTX_ALL;
-
-/// `AUDCLNT_E_DEVICE_INVALIDATED`: returned when activating a disabled, unplugged or
-/// not-present endpoint. To the caller that's "no usable device", like not-found.
-const DEVICE_INVALIDATED_HRESULT: i32 = 0x8889_0004_u32 as i32;
-/// `HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)`: what activating a not-present (removed) endpoint
-/// actually returns in practice.
-const FILE_NOT_FOUND_HRESULT: i32 = 0x8007_0002_u32 as i32;
 
 #[napi(object)]
 pub struct ChannelVolume {
@@ -53,19 +45,10 @@ pub fn with_endpoint<T>(
     let Some(device) = resolve_device(device_id)? else {
         return Ok(None);
     };
-    let endpoint = match unsafe { device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) } {
-        Ok(endpoint) => endpoint,
-        Err(e)
-            if [
-                DEVICE_INVALIDATED_HRESULT,
-                ERROR_NOT_FOUND_HRESULT,
-                FILE_NOT_FOUND_HRESULT,
-            ]
-            .contains(&e.code().0) =>
-        {
-            return Ok(None)
-        }
-        Err(e) => return Err(to_napi_err("failed to activate endpoint volume", e)),
+    let Some(endpoint) =
+        activate::<IAudioEndpointVolume>(&device, "failed to activate endpoint volume")?
+    else {
+        return Ok(None);
     };
     f(&endpoint).map(Some)
 }

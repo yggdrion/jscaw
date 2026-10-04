@@ -1,11 +1,12 @@
 use napi::{Error, Result, Status};
-use windows::core::{HRESULT, HSTRING};
+use windows::core::{Interface, HRESULT, HSTRING, PWSTR};
 use windows::Win32::Foundation::E_INVALIDARG;
 use windows::Win32::Media::Audio::{
     eConsole, eRender, EDataFlow, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
 };
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_ALL,
+    COINIT_MULTITHREADED,
 };
 
 pub fn validate_volume(volume: f64) -> Result<()> {
@@ -96,6 +97,49 @@ pub fn resolve_device(device_id: Option<&str>) -> Result<Option<IMMDevice>> {
             )
         }
     }
+}
+
+/// `AUDCLNT_E_DEVICE_INVALIDATED`: returned when activating a disabled, unplugged or
+/// not-present endpoint. To the caller that's "no usable device", like not-found.
+const DEVICE_INVALIDATED_HRESULT: i32 = 0x8889_0004_u32 as i32;
+/// `HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)` / `ERROR_PATH_NOT_FOUND`: what activating or
+/// enumerating a not-present (removed) endpoint actually returns in practice.
+const FILE_NOT_FOUND_HRESULT: i32 = 0x8007_0002_u32 as i32;
+const PATH_NOT_FOUND_HRESULT: i32 = 0x8007_0003_u32 as i32;
+
+/// True for the errors a disabled, unplugged or removed endpoint returns. To the caller
+/// that's "no usable device", not a failure.
+pub fn is_missing_device(err: &windows::core::Error) -> bool {
+    [
+        DEVICE_INVALIDATED_HRESULT,
+        ERROR_NOT_FOUND_HRESULT,
+        FILE_NOT_FOUND_HRESULT,
+        PATH_NOT_FOUND_HRESULT,
+    ]
+    .contains(&err.code().0)
+}
+
+/// Activates interface `T` on `device`. `Ok(None)` when the endpoint is disabled, unplugged
+/// or gone.
+pub fn activate<T: Interface>(device: &IMMDevice, context: &str) -> Result<Option<T>> {
+    match unsafe { device.Activate::<T>(CLSCTX_ALL, None) } {
+        Ok(interface) => Ok(Some(interface)),
+        Err(e) if is_missing_device(&e) => Ok(None),
+        Err(e) => Err(to_napi_err(context, e)),
+    }
+}
+
+/// Converts and frees a string that a COM getter allocated with `CoTaskMemAlloc`.
+///
+/// # Safety
+/// `raw` must be null or a `CoTaskMemAlloc`'d, NUL-terminated wide string the caller owns.
+pub unsafe fn take_co_string(raw: PWSTR) -> String {
+    if raw.is_null() {
+        return String::new();
+    }
+    let value = String::from_utf16_lossy(raw.as_wide());
+    CoTaskMemFree(Some(raw.0 as *const _));
+    value
 }
 
 #[cfg(test)]
