@@ -1,4 +1,6 @@
-use crate::com::{default_device, device_enumerator, resolve_device, to_napi_err, ComGuard};
+use crate::com::{
+    default_device, device_enumerator, resolve_device, take_co_string, to_napi_err, ComGuard,
+};
 use napi::Result;
 use napi_derive::napi;
 use windows::core::Interface;
@@ -11,7 +13,7 @@ use windows::Win32::Media::Audio::{
     IMMEndpoint, DEVICE_STATE, DEVICE_STATE_ACTIVE, DEVICE_STATE_DISABLED, DEVICE_STATE_NOTPRESENT,
     DEVICE_STATE_UNPLUGGED,
 };
-use windows::Win32::System::Com::{CoTaskMemFree, STGM_READ};
+use windows::Win32::System::Com::STGM_READ;
 
 #[napi(string_enum)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,10 +151,7 @@ fn string_property(device: &IMMDevice, key: &PROPERTYKEY) -> String {
 /// so one broken device never fails a whole listing.
 fn to_device(device: &IMMDevice) -> Option<Device> {
     unsafe {
-        let raw_id = device.GetId().ok()?;
-        let id = String::from_utf16_lossy(raw_id.as_wide());
-        // GetId allocates the string with CoTaskMemAlloc; the caller owns it.
-        CoTaskMemFree(Some(raw_id.0 as *const _));
+        let id = take_co_string(device.GetId().ok()?);
         let endpoint = device.cast::<IMMEndpoint>().ok()?;
         let flow = DeviceFlow::from_windows(endpoint.GetDataFlow().ok()?)?;
         let state = DeviceState::from_windows(device.GetState().ok()?)?;

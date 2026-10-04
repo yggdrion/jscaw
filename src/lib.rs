@@ -8,37 +8,54 @@ mod sessions;
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
 use endpoint::{EndpointVolume, StepDirection};
 use napi_derive::napi;
-
-#[napi(object)]
-pub struct AudioSession {
-    pub pid: u32,
-    pub process_name: String,
-    pub volume: f64,
-    pub muted: bool,
-}
+use sessions::{AudioSession, ListSessionsOptions, SessionTarget};
 
 #[napi]
-pub fn list_sessions() -> napi::Result<Vec<AudioSession>> {
-    Ok(sessions::list_sessions()?
-        .into_iter()
-        .map(|session| AudioSession {
-            pid: session.pid,
-            process_name: session.process_name,
-            volume: session.volume as f64,
-            muted: session.muted,
-        })
-        .collect())
+pub fn list_sessions(options: Option<ListSessionsOptions>) -> napi::Result<Vec<AudioSession>> {
+    sessions::list_sessions(options)
 }
 
 #[napi]
 pub fn set_process_volume(process_name: String, volume: f64) -> napi::Result<u32> {
-    com::validate_volume(volume)?;
-    sessions::set_volume_for_process(&process_name, volume as f32)
+    sessions::set_volume(SessionTarget::process(process_name), volume)
 }
 
 #[napi]
 pub fn set_process_mute(process_name: String, muted: bool) -> napi::Result<u32> {
-    sessions::set_mute_for_process(&process_name, muted)
+    sessions::set_mute(SessionTarget::process(process_name), muted)
+}
+
+#[napi]
+pub fn set_session_volume(target: SessionTarget, volume: f64) -> napi::Result<u32> {
+    sessions::set_volume(target, volume)
+}
+
+#[napi]
+pub fn set_session_mute(target: SessionTarget, muted: bool) -> napi::Result<u32> {
+    sessions::set_mute(target, muted)
+}
+
+#[napi]
+pub fn set_session_display_name(target: SessionTarget, display_name: String) -> napi::Result<u32> {
+    sessions::set_display_name(target, display_name)
+}
+
+#[napi]
+pub fn set_session_icon_path(target: SessionTarget, icon_path: String) -> napi::Result<u32> {
+    sessions::set_icon_path(target, icon_path)
+}
+
+#[napi]
+pub fn set_session_grouping_param(
+    target: SessionTarget,
+    grouping_param: String,
+) -> napi::Result<u32> {
+    sessions::set_grouping_param(target, grouping_param)
+}
+
+#[napi]
+pub fn set_session_ducking_preference(target: SessionTarget, opt_out: bool) -> napi::Result<u32> {
+    sessions::set_ducking_preference(target, opt_out)
 }
 
 #[napi]

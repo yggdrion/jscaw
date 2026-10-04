@@ -7,7 +7,7 @@ and active Core Audio sessions, and control device (master) and per-process volu
 import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
 
 listSessions();
-// [{ pid: 1234, processName: 'Discord.exe', volume: 1, muted: false }, ...]
+// [{ pid: 1234, processName: 'Discord.exe', volume: 1, muted: false, state: 'active', displayName: '', … }, ...]
 
 setProcessVolume('Discord.exe', 0.3); // returns the number of sessions updated
 setProcessMute('Discord.exe', true);
@@ -59,18 +59,54 @@ Every function takes an optional trailing `deviceId` (from `listDevices()`); wit
 default render (`console`) device is used. Setters return `false` instead of throwing when the
 device is missing, disabled or unplugged; invalid values throw.
 
-See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts)
-and [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts) for runnable examples.
+## Sessions
+
+```ts
+import {
+  listSessions,
+  setSessionDisplayName,
+  setSessionDuckingPreference,
+  setSessionGroupingParam,
+  setSessionIconPath,
+  setSessionMute,
+  setSessionVolume,
+} from 'jscaw';
+
+listSessions({ deviceId, includeSystemSounds: true });
+// [{ pid, processName, volume, muted, state: 'active', displayName: '', iconPath: '',
+//    groupingParam: '{39E4403C-…}', sessionId: '…', instanceId: '…', isSystemSounds: false }, ...]
+setSessionVolume({ processName: 'Discord.exe' }, 0.3); // every matching session
+setSessionMute({ pid: 1234 }, true);
+setSessionDisplayName({ instanceId }, 'Game audio');
+setSessionIconPath({ instanceId }, 'C:\\game\\icon.ico');
+setSessionGroupingParam({ instanceId }, '{6A1D3B2C-0000-4000-8000-00000000C0DE}');
+setSessionDuckingPreference({ processName: 'Spotify.exe' }, true); // opt out of ducking
+```
+
+`listSessions` defaults to the default render device and hides the system sounds session
+(`pid: 0`, `processName: ''`, `isSystemSounds: true`) unless `includeSystemSounds` is set.
+`state` is `'inactive'`, `'active'` or `'expired'`. `displayName`/`iconPath` are returned as
+Windows stores them, which may be empty or an indirect `@…` resource string. `groupingParam`
+is a braced GUID; sessions sharing one are grouped in the volume mixer.
+
+Setters take a `SessionTarget`: exactly one of `{ pid }`, `{ processName }` (case-insensitive)
+or `{ instanceId }`, plus an optional `deviceId`. Anything else throws. Each returns the number
+of sessions changed, `0` when nothing matches or the device is missing.
+`setProcessVolume(name, v)`/`setProcessMute(name, m)` are shorthands for `{ processName }`.
+
+See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts),
+[`examples/endpoint-volume.ts`](examples/endpoint-volume.ts) and
+[`examples/sessions.ts`](examples/sessions.ts) for runnable examples.
 
 ## Scope
 
 - **Windows only.** The package's `os` field is `["win32"]`; it won't install on macOS/Linux.
-- **Active sessions only.** `listSessions()` reflects audio sessions that currently exist on
-  the default render endpoint. A process with no active audio session (nothing played yet,
-  or it already finished) won't appear.
-- **Every matching session changes together.** `setProcessVolume`/`setProcessMute` match by
-  exact, case-insensitive executable filename and apply to *all* sessions owned by that
-  process — a process that owns more than one session (e.g. Discord's voice and
+- **Existing sessions only.** `listSessions()` reflects audio sessions that currently exist
+  on one device (the default render endpoint unless `deviceId` is given). A process with no
+  audio session (nothing played yet), or whose process has exited, won't appear.
+- **Every matching session changes together.** `setProcessVolume`/`setProcessMute` (and
+  `{ processName }` targets) match by exact, case-insensitive executable filename and apply
+  to *all* sessions owned by that process — a process that owns more than one session (e.g. Discord's voice and
   notification sessions) has all of them updated in one call, and the return value is the
   count of sessions that changed.
 

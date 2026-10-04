@@ -12,17 +12,57 @@ import {
   setEndpointVolumeDb,
   setProcessMute,
   setProcessVolume,
+  setSessionDisplayName,
+  setSessionDuckingPreference,
+  setSessionGroupingParam,
+  setSessionIconPath,
+  setSessionMute,
+  setSessionVolume,
   stepEndpointVolume,
 } from '../index.js';
 
-test('listSessions returns an array of session-shaped objects', () => {
+const FLOWS = ['render', 'capture'];
+const STATES = ['active', 'disabled', 'notPresent', 'unplugged'];
+const SESSION_STATES = ['inactive', 'active', 'expired'];
+const GUID_RE = /^\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}$/;
+const assertSession = (s) => {
+  for (const key of ['pid', 'volume']) assert.equal(typeof s[key], 'number', key);
+  for (const key of ['processName', 'displayName', 'iconPath', 'sessionId', 'instanceId']) {
+    assert.equal(typeof s[key], 'string', key);
+  }
+  assert.equal(typeof s.muted, 'boolean');
+  assert.equal(typeof s.isSystemSounds, 'boolean');
+  assert.ok(SESSION_STATES.includes(s.state), `bad state ${s.state}`);
+  assert.ok(s.groupingParam === '' || GUID_RE.test(s.groupingParam), s.groupingParam);
+};
+
+test('listSessions returns rich sessions without system sounds by default', () => {
   const sessions = listSessions();
   assert.ok(Array.isArray(sessions));
-  for (const session of sessions) {
-    assert.equal(typeof session.pid, 'number');
-    assert.equal(typeof session.processName, 'string');
-    assert.equal(typeof session.volume, 'number');
-    assert.equal(typeof session.muted, 'boolean');
+  for (const s of sessions) {
+    assertSession(s);
+    assert.equal(s.isSystemSounds, false);
+    assert.ok(s.processName.length > 0);
+  }
+});
+
+test('listSessions includeSystemSounds adds only the system sounds session', () => {
+  const all = listSessions({ includeSystemSounds: true });
+  all.forEach(assertSession);
+  const system = all.filter((s) => s.isSystemSounds);
+  assert.ok(system.length <= 1);
+  for (const s of system) assert.equal(s.processName, '');
+  assert.ok(all.length >= listSessions().length);
+});
+
+test('listSessions returns [] for unknown devices', () => {
+  assert.deepEqual(listSessions({ deviceId: 'not-a-device-id' }), []);
+  assert.deepEqual(listSessions({ deviceId: '' }), []);
+});
+
+test('listSessions never throws for devices in any state', () => {
+  for (const device of listDevices({ state: STATES })) {
+    listSessions({ deviceId: device.id, includeSystemSounds: true }).forEach(assertSession);
   }
 });
 
@@ -75,8 +115,98 @@ test('setProcessVolume/setProcessMute update a real session and can be restored'
   }
 });
 
-const FLOWS = ['render', 'capture'];
-const STATES = ['active', 'disabled', 'notPresent', 'unplugged'];
+const BAD_TARGETS = [
+  {},
+  { deviceId: 'x' },
+  { pid: 1, processName: 'x.exe' },
+  { processName: 'x.exe', instanceId: 'y' },
+  { pid: 1, instanceId: 'y' },
+];
+const UNMATCHED_TARGETS = [
+  { pid: 4294967290 },
+  { processName: 'does-not-exist.exe' },
+  { instanceId: 'no-such-instance' },
+  { processName: 'does-not-exist.exe', deviceId: 'not-a-device-id' },
+];
+
+test('session setters reject malformed targets', () => {
+  for (const target of BAD_TARGETS) {
+    assert.throws(() => setSessionVolume(target, 0.5), /exactly one/);
+    assert.throws(() => setSessionMute(target, true), /exactly one/);
+  }
+  assert.throws(() => setSessionVolume(null, 0.5));
+  for (const pid of [NaN, Infinity, -1, 1.5, 2 ** 32]) {
+    assert.throws(() => setSessionMute({ pid }, true), /pid must be/);
+  }
+});
+
+test('setSessionVolume rejects invalid volume even when nothing matches', () => {
+  for (const v of [-0.1, 1.1, NaN]) {
+    assert.throws(() => setSessionVolume({ processName: 'does-not-exist.exe' }, v));
+  }
+});
+
+test('session setters return 0 when nothing matches', () => {
+  for (const target of UNMATCHED_TARGETS) {
+    assert.equal(setSessionVolume(target, 0.5), 0);
+    assert.equal(setSessionMute(target, true), 0);
+  }
+});
+
+const METADATA_SETTERS = [
+  [() => setSessionDisplayName, 'name'],
+  [() => setSessionIconPath, 'C:\\icon.ico'],
+  [() => setSessionGroupingParam, '{6A1D3B2C-0000-4000-8000-00000000C0DE}'],
+  [() => setSessionDuckingPreference, true],
+];
+
+test('metadata setters reject malformed targets and return 0 when nothing matches', () => {
+  for (const [fn, value] of METADATA_SETTERS) {
+    for (const target of BAD_TARGETS) assert.throws(() => fn()(target, value), /exactly one/);
+    for (const target of UNMATCHED_TARGETS) assert.equal(fn()(target, value), 0);
+  }
+});
+
+test('setSessionGroupingParam accepts any GUID casing/bracing and rejects non-GUIDs', () => {
+  const target = { processName: 'does-not-exist.exe' };
+  for (const g of ['6a1d3b2c-0000-4000-8000-00000000c0de', '{6a1d3b2c-0000-4000-8000-00000000c0de}']) {
+    assert.equal(setSessionGroupingParam(target, g), 0);
+  }
+  for (const g of ['', 'not-a-guid', '{6a1d3b2c-0000-4000-8000-00000000c0de', '6a1d3b2c00004000800000000000c0de']) {
+    assert.throws(() => setSessionGroupingParam(target, g), /GUID/);
+  }
+});
+
+test('session setters target by instanceId and pid and can be restored', (t) => {
+  const targetProcess = process.env.JSCAW_TEST_PROCESS;
+  if (!targetProcess) {
+    t.skip('set JSCAW_TEST_PROCESS to a running process name to run this check');
+    return;
+  }
+  const s = listSessions().find((x) => x.processName.toLowerCase() === targetProcess.toLowerCase());
+  assert.ok(s, `no active audio session found for ${targetProcess}`);
+  const target = { instanceId: s.instanceId };
+  const find = () => listSessions().find((x) => x.instanceId === s.instanceId);
+  try {
+    assert.equal(setSessionVolume(target, 0.25), 1);
+    assert.ok(Math.abs(find().volume - 0.25) < 0.01);
+    assert.equal(setSessionMute(target, !s.muted), 1);
+    assert.equal(find().muted, !s.muted);
+    assert.ok(setSessionMute({ pid: s.pid }, s.muted) >= 1);
+    assert.equal(find().muted, s.muted);
+    assert.equal(setSessionDisplayName(target, 'jscaw test'), 1);
+    assert.equal(find().displayName, 'jscaw test');
+    const group = '{6A1D3B2C-0000-4000-8000-00000000C0DE}';
+    assert.equal(setSessionGroupingParam(target, group.toLowerCase()), 1);
+    assert.equal(find().groupingParam, group);
+  } finally {
+    setSessionVolume(target, s.volume);
+    setSessionMute(target, s.muted);
+    setSessionDisplayName(target, s.displayName);
+    if (s.groupingParam) setSessionGroupingParam(target, s.groupingParam);
+  }
+});
+
 const assertDevice = (device) => {
   assert.equal(typeof device.id, 'string');
   assert.ok(device.id.length > 0);
