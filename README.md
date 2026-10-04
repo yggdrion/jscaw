@@ -33,12 +33,6 @@ No audio routing, no master/device volume control, no level meters, no change
 callbacks/notifications, and no audio playback. This package only enumerates existing
 sessions and adjusts their per-process volume/mute.
 
-## ePad handoff
-
-This package is a drop-in replacement for `src/mixer.py` in ePad only — it covers the
-per-process volume/mute mixing that `mixer.py` used to own. Soundpad integration and the
-WebSocket protocol work in ePad are unrelated and remain separate, unaffected efforts.
-
 ## Releasing
 
 See [`docs/RELEASING.md`](docs/RELEASING.md).

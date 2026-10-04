@@ -79,10 +79,9 @@ IMMDeviceEnumerator
 - [x] Before the first release, run `pnpm napi prepublish -t npm --dry-run` and `npm pack --dry-run --ignore-scripts` only. (The actual command is `napi pre-publish`, not `prepublish` — fixed the `prepublishOnly` script to match. `npm pack --dry-run --ignore-scripts` ran clean. `napi pre-publish --dry-run` requires both platforms' `.node` binaries to exist first; this machine's Visual Studio install has the x64 C++ toolset but not the ARM64 one (`vswhere` confirms `Microsoft.VisualStudio.Component.VC.Tools.ARM64` is absent), so only the x64 binary could be built locally and the two-platform dry run couldn't complete here. Per Task 0's caveat, I didn't install that VS component unprompted — flagged it to the user instead. CI's native `windows-11-arm` runner isn't affected by this local gap.)
 - [x] Commit `ci: build and publish Windows native binaries`.
 
-## Task 6: Documentation and ePad handoff
+## Task 6: Documentation
 
 - [x] Add `examples/basic.ts` using `listSessions`, `setProcessVolume("Discord.exe", 0.3)`, and `setProcessMute("Discord.exe", false)`.
 - [x] Document: Windows-only; active sessions only; all matching sessions change; v1 exclusions.
-- [x] State that ePad will only replace `src/mixer.py`; Soundpad and WebSocket protocol work remain separate.
 - [x] Run `cargo fmt --check`, `cargo clippy -- -D warnings`, `pnpm build`, `pnpm test`, `bun test`, and `git diff --check`.
 - [x] Commit `docs: document Windows audio sessions package`.
