@@ -1,7 +1,7 @@
 # jscaw
 
 Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list audio devices
-and active Core Audio sessions, and control per-process volume/mute. Works from Node.js and Bun.
+and active Core Audio sessions, and control device (master) and per-process volume/mute. Works from Node.js and Bun.
 
 ```ts
 import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
@@ -31,8 +31,36 @@ getDevice(id); // null when the id is unknown
 `'render'` and the `'console'` role. `name` is the device's friendly name, falling back to its
 description. Machines with no audio devices get `[]`/`null` rather than errors.
 
-See [`examples/basic.ts`](examples/basic.ts) and [`examples/devices.ts`](examples/devices.ts)
-for runnable examples.
+## Endpoint volume
+
+```ts
+import {
+  getDefaultDevice,
+  getEndpointVolume,
+  setEndpointChannelVolume,
+  setEndpointMute,
+  setEndpointVolume,
+  setEndpointVolumeDb,
+  stepEndpointVolume,
+} from 'jscaw';
+
+const micId = getDefaultDevice('capture')?.id;
+getEndpointVolume(); // default speakers, or null
+// { volume: 0.42, volumeDb: -14.3, muted: false, channels: [{ volume: 0.42, volumeDb: -14.3 }, …],
+//   range: { minDb: -65.25, maxDb: 0, incrementDb: 0.03 }, step: { current: 21, count: 51 }, hardwareSupport: 0 }
+setEndpointVolume(0.3); // true when applied, false when the device doesn't exist
+setEndpointVolumeDb(-20, micId); // validated against `range`
+setEndpointMute(true, micId); // works for capture devices (microphones) too
+setEndpointChannelVolume(0, 0.5); // channel index < channels.length
+stepEndpointVolume('up');
+```
+
+Every function takes an optional trailing `deviceId` (from `listDevices()`); without it the
+default render (`console`) device is used. Setters return `false` instead of throwing when the
+device is missing, disabled or unplugged; invalid values throw.
+
+See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts)
+and [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts) for runnable examples.
 
 ## Scope
 
@@ -48,9 +76,8 @@ for runnable examples.
 
 ## v1 exclusions
 
-No audio routing (devices can be listed, not switched), no master/device volume control, no level meters, no change
-callbacks/notifications, and no audio playback. This package only enumerates devices and existing
-sessions and adjusts sessions' per-process volume/mute.
+No audio routing (devices can be listed, not switched), no level meters, no change
+callbacks/notifications, and no audio playback.
 
 ## Releasing
 

@@ -2,9 +2,11 @@
 
 mod com;
 mod devices;
+mod endpoint;
 mod sessions;
 
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
+use endpoint::{EndpointVolume, StepDirection};
 use napi_derive::napi;
 
 #[napi(object)]
@@ -55,4 +57,41 @@ pub fn get_default_device(
 #[napi]
 pub fn get_device(id: String) -> napi::Result<Option<Device>> {
     devices::get_device(id)
+}
+
+#[napi]
+pub fn get_endpoint_volume(device_id: Option<String>) -> napi::Result<Option<EndpointVolume>> {
+    endpoint::get_endpoint_volume(device_id.as_deref())
+}
+
+#[napi]
+pub fn set_endpoint_volume(volume: f64, device_id: Option<String>) -> napi::Result<bool> {
+    endpoint::set_volume(volume, device_id.as_deref())
+}
+
+#[napi]
+pub fn set_endpoint_volume_db(volume_db: f64, device_id: Option<String>) -> napi::Result<bool> {
+    endpoint::set_volume_db(volume_db, device_id.as_deref())
+}
+
+#[napi]
+pub fn set_endpoint_mute(muted: bool, device_id: Option<String>) -> napi::Result<bool> {
+    endpoint::set_mute(muted, device_id.as_deref())
+}
+
+#[napi]
+pub fn set_endpoint_channel_volume(
+    channel: u32,
+    volume: f64,
+    device_id: Option<String>,
+) -> napi::Result<bool> {
+    endpoint::set_channel_volume(channel, volume, device_id.as_deref())
+}
+
+#[napi]
+pub fn step_endpoint_volume(
+    direction: StepDirection,
+    device_id: Option<String>,
+) -> napi::Result<bool> {
+    endpoint::step(direction, device_id.as_deref())
 }
