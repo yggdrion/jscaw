@@ -34,8 +34,17 @@ description. Machines with no audio devices get `[]`/`null` rather than errors.
 ## Endpoint volume
 
 ```ts
-import { getEndpointVolume, setEndpointMute, setEndpointVolume, stepEndpointVolume } from 'jscaw';
+import {
+  getDefaultDevice,
+  getEndpointVolume,
+  setEndpointChannelVolume,
+  setEndpointMute,
+  setEndpointVolume,
+  setEndpointVolumeDb,
+  stepEndpointVolume,
+} from 'jscaw';
 
+const micId = getDefaultDevice('capture')?.id;
 getEndpointVolume(); // default speakers, or null
 // { volume: 0.42, volumeDb: -14.3, muted: false, channels: [{ volume: 0.42, volumeDb: -14.3 }, …],
 //   range: { minDb: -65.25, maxDb: 0, incrementDb: 0.03 }, step: { current: 21, count: 51 }, hardwareSupport: 0 }
