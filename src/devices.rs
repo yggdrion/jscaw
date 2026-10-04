@@ -206,12 +206,16 @@ pub fn get_default_device(
     let _com = com_guard()?;
     let flow = flow.unwrap_or(DeviceFlow::Render).to_windows();
     let role = role.unwrap_or(DeviceRole::Console).to_windows();
-    Ok(default_device(flow, role)?.as_ref().and_then(to_device))
+    // Bind to a local so the device is released before `_com` uninitializes COM; a tail
+    // expression temporary would outlive the guard under edition 2021 drop order.
+    let device = default_device(flow, role)?;
+    Ok(device.as_ref().and_then(to_device))
 }
 
 pub fn get_device(id: String) -> Result<Option<Device>> {
     let _com = com_guard()?;
-    Ok(resolve_device(Some(&id))?.as_ref().and_then(to_device))
+    let device = resolve_device(Some(&id))?;
+    Ok(device.as_ref().and_then(to_device))
 }
 
 #[cfg(test)]
