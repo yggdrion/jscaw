@@ -39,13 +39,13 @@ The roadmap starts with PR 1. Every later PR needs `resolve_device(deviceId?)` a
 - Create `src/devices.rs` — napi enums/object, pure mapping helpers + unit tests, `list_devices`, `get_device`, `get_default_device`.
 - Delete `src/core_audio.rs`.
 - Modify `src/lib.rs`, `Cargo.toml`, `__test__/addon.test.mjs`, `README.md`, `AGENTS.md`.
-- Create `examples/devices.ts`, `docs/superpowers/plans/2026-10-04-module-split-device-enumeration.md` (copy of this plan).
+- Create `examples/devices.ts`, `docs/superpowers/plans/2026-10-04-pr-1-module-split-device-enumeration.md` (copy of this plan).
 
 ---
 
 ### Task 1: Module split (no behaviour change)
 
-**Files:** Create `src/com.rs`, `src/sessions.rs`; delete `src/core_audio.rs`; modify `src/lib.rs`, `AGENTS.md`; add this plan to `docs/superpowers/plans/2026-10-04-module-split-device-enumeration.md`.
+**Files:** Create `src/com.rs`, `src/sessions.rs`; delete `src/core_audio.rs`; modify `src/lib.rs`, `AGENTS.md`; add this plan to `docs/superpowers/plans/2026-10-04-pr-1-module-split-device-enumeration.md`.
 
 **Interfaces — Produces:**
 - `com::ComGuard::new() -> windows::core::Result<ComGuard>`
@@ -137,7 +137,7 @@ fn session_manager() -> Result<Option<IAudioSessionManager2>> {
 - [ ] **Step 7: Save the plan into the repo and commit.**
 
 ```bash
-git add -A src AGENTS.md docs/superpowers/plans/2026-10-04-module-split-device-enumeration.md
+git add -A src AGENTS.md docs/superpowers/plans/2026-10-04-pr-1-module-split-device-enumeration.md
 git commit -m "refactor: split core_audio into com, sessions and devices modules"
 ```
 

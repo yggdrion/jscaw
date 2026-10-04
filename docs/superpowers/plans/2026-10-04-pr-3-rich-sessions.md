@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**First execution step:** copy this file to `docs/superpowers/plans/2026-10-04-rich-sessions.md` (repo convention) and include it in Task 1's commit.
+**First execution step:** copy this file to `docs/superpowers/plans/2026-10-04-pr-3-rich-sessions.md` (repo convention) and include it in Task 1's commit.
 
 **Goal:** Expose pycaw's `AudioSession` / `IAudioSessionControl2` surface: richer `listSessions()` (state, display name, icon, grouping, ids, system sounds, any device) plus setters that target sessions by `{ pid } | { processName } | { instanceId }`.
 
@@ -371,7 +371,7 @@ Expected: all PASS, including the existing endpoint/device tests, which prove th
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add docs/superpowers/plans/2026-10-04-rich-sessions.md src __test__/addon.test.mjs
+git add docs/superpowers/plans/2026-10-04-pr-3-rich-sessions.md src __test__/addon.test.mjs
 git commit -m "feat: add rich session info and per-device listSessions"
 ```
 

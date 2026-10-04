@@ -13,7 +13,7 @@ The goal is **full parity with pycaw** (AndreMiras/pycaw, `main` branch). That c
 Each PR below is self-contained and meant to run in its own session. Start a session with
 **"implement PR N from `docs/superpowers/specs/2026-10-04-pycaw-parity-roadmap-design.md`"**.
 That session reads this spec and the current code (earlier PRs may have changed it), writes
-`docs/superpowers/plans/<date>-<pr-slug>.md` with `superpowers:writing-plans`, then
+`docs/superpowers/plans/<date>-pr-<n>-<pr-slug>.md` with `superpowers:writing-plans`, then
 implements with TDD. Respect the dependency graph: do not start a PR until its prerequisites
 have merged.
 

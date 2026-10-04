@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**First execution step:** copy this file to `docs/superpowers/plans/2026-10-04-endpoint-volume.md` (repo convention, see PR 1's plan) and include it in Task 1's commit.
+**First execution step:** copy this file to `docs/superpowers/plans/2026-10-04-pr-2-endpoint-volume.md` (repo convention, see PR 1's plan) and include it in Task 1's commit.
 
 **Goal:** Expose `IAudioEndpointVolume` (master/device volume, dB, mute, per-channel, step, range, hardware support) for render and capture endpoints.
 
@@ -236,7 +236,7 @@ Expected: all PASS. If the any-state sweep throws with some other activation HRE
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add Cargo.toml Cargo.lock src/endpoint.rs src/lib.rs __test__/addon.test.mjs AGENTS.md docs/superpowers/plans/2026-10-04-endpoint-volume.md
+git add Cargo.toml Cargo.lock src/endpoint.rs src/lib.rs __test__/addon.test.mjs AGENTS.md docs/superpowers/plans/2026-10-04-pr-2-endpoint-volume.md
 git commit -m "feat: add getEndpointVolume for render and capture endpoints"
 ```
 
