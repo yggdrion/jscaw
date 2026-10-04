@@ -36,6 +36,29 @@ pub fn set_session_mute(target: SessionTarget, muted: bool) -> napi::Result<u32>
 }
 
 #[napi]
+pub fn set_session_display_name(target: SessionTarget, display_name: String) -> napi::Result<u32> {
+    sessions::set_display_name(target, display_name)
+}
+
+#[napi]
+pub fn set_session_icon_path(target: SessionTarget, icon_path: String) -> napi::Result<u32> {
+    sessions::set_icon_path(target, icon_path)
+}
+
+#[napi]
+pub fn set_session_grouping_param(
+    target: SessionTarget,
+    grouping_param: String,
+) -> napi::Result<u32> {
+    sessions::set_grouping_param(target, grouping_param)
+}
+
+#[napi]
+pub fn set_session_ducking_preference(target: SessionTarget, opt_out: bool) -> napi::Result<u32> {
+    sessions::set_ducking_preference(target, opt_out)
+}
+
+#[napi]
 pub fn list_devices(options: Option<ListDevicesOptions>) -> napi::Result<Vec<Device>> {
     devices::list_devices(options)
 }

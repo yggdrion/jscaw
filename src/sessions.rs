@@ -6,7 +6,7 @@ use napi::{Error, Result, Status};
 use napi_derive::napi;
 use std::path::Path;
 use std::ptr::null;
-use windows::core::{Interface, GUID, PWSTR};
+use windows::core::{Interface, GUID, HSTRING, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, MAX_PATH, S_OK};
 use windows::Win32::Media::Audio::{
     AudioSessionState, AudioSessionStateActive, AudioSessionStateExpired,
@@ -267,6 +267,48 @@ pub fn set_mute(target: SessionTarget, muted: bool) -> Result<u32> {
     })
 }
 
+/// Accepts `XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX` in either case, with or without braces.
+fn parse_guid(value: &str) -> Result<GUID> {
+    let inner = value
+        .strip_prefix('{')
+        .and_then(|v| v.strip_suffix('}'))
+        .unwrap_or(value);
+    GUID::try_from(inner).map_err(|_| {
+        Error::new(
+            Status::InvalidArg,
+            format!("groupingParam must be a GUID string, got {value:?}"),
+        )
+    })
+}
+
+pub fn set_display_name(target: SessionTarget, name: String) -> Result<u32> {
+    let name = HSTRING::from(name);
+    apply_to(target, |control| unsafe {
+        control.SetDisplayName(&name, null())
+    })
+}
+
+pub fn set_icon_path(target: SessionTarget, path: String) -> Result<u32> {
+    let path = HSTRING::from(path);
+    apply_to(target, |control| unsafe {
+        control.SetIconPath(&path, null())
+    })
+}
+
+pub fn set_grouping_param(target: SessionTarget, param: String) -> Result<u32> {
+    let guid = parse_guid(&param)?;
+    apply_to(target, |control| unsafe {
+        control.SetGroupingParam(&guid, null())
+    })
+}
+
+/// `opt_out = true` stops Windows from ducking this session when a communications stream starts.
+pub fn set_ducking_preference(target: SessionTarget, opt_out: bool) -> Result<u32> {
+    apply_to(target, |control| unsafe {
+        control.SetDuckingPreference(opt_out)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,5 +360,25 @@ mod tests {
         assert!(t(Some(4), Some("a.exe"), None).into_matcher().is_err());
         assert!(t(Some(4), None, Some("i")).into_matcher().is_err());
         assert!(t(None, Some("a.exe"), Some("i")).into_matcher().is_err());
+    }
+
+    #[test]
+    fn parse_guid_accepts_case_and_braces_and_round_trips() {
+        let canonical = "{6A1D3B2C-0000-4000-8000-00000000C0DE}";
+        for input in [
+            canonical,
+            "6a1d3b2c-0000-4000-8000-00000000c0de",
+            "{6a1d3b2c-0000-4000-8000-00000000c0de}",
+        ] {
+            assert_eq!(format_guid(parse_guid(input).unwrap()), canonical);
+        }
+        for bad in [
+            "",
+            "nope",
+            "{6a1d3b2c-0000-4000-8000-00000000c0de",
+            "6a1d3b2c00004000800000000000c0de",
+        ] {
+            assert!(parse_guid(bad).is_err(), "{bad}");
+        }
     }
 }

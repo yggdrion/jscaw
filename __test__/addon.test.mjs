@@ -12,6 +12,10 @@ import {
   setEndpointVolumeDb,
   setProcessMute,
   setProcessVolume,
+  setSessionDisplayName,
+  setSessionDuckingPreference,
+  setSessionGroupingParam,
+  setSessionIconPath,
   setSessionMute,
   setSessionVolume,
   stepEndpointVolume,
@@ -146,6 +150,30 @@ test('session setters return 0 when nothing matches', () => {
   }
 });
 
+const METADATA_SETTERS = [
+  [() => setSessionDisplayName, 'name'],
+  [() => setSessionIconPath, 'C:\icon.ico'],
+  [() => setSessionGroupingParam, '{6A1D3B2C-0000-4000-8000-00000000C0DE}'],
+  [() => setSessionDuckingPreference, true],
+];
+
+test('metadata setters reject malformed targets and return 0 when nothing matches', () => {
+  for (const [fn, value] of METADATA_SETTERS) {
+    for (const target of BAD_TARGETS) assert.throws(() => fn()(target, value), /exactly one/);
+    for (const target of UNMATCHED_TARGETS) assert.equal(fn()(target, value), 0);
+  }
+});
+
+test('setSessionGroupingParam accepts any GUID casing/bracing and rejects non-GUIDs', () => {
+  const target = { processName: 'does-not-exist.exe' };
+  for (const g of ['6a1d3b2c-0000-4000-8000-00000000c0de', '{6a1d3b2c-0000-4000-8000-00000000c0de}']) {
+    assert.equal(setSessionGroupingParam(target, g), 0);
+  }
+  for (const g of ['', 'not-a-guid', '{6a1d3b2c-0000-4000-8000-00000000c0de', '6a1d3b2c00004000800000000000c0de']) {
+    assert.throws(() => setSessionGroupingParam(target, g), /GUID/);
+  }
+});
+
 test('session setters target by instanceId and pid and can be restored', (t) => {
   const targetProcess = process.env.JSCAW_TEST_PROCESS;
   if (!targetProcess) {
@@ -163,9 +191,16 @@ test('session setters target by instanceId and pid and can be restored', (t) => 
     assert.equal(find().muted, !s.muted);
     assert.ok(setSessionMute({ pid: s.pid }, s.muted) >= 1);
     assert.equal(find().muted, s.muted);
+    assert.equal(setSessionDisplayName(target, 'jscaw test'), 1);
+    assert.equal(find().displayName, 'jscaw test');
+    const group = '{6A1D3B2C-0000-4000-8000-00000000C0DE}';
+    assert.equal(setSessionGroupingParam(target, group.toLowerCase()), 1);
+    assert.equal(find().groupingParam, group);
   } finally {
     setSessionVolume(target, s.volume);
     setSessionMute(target, s.muted);
+    setSessionDisplayName(target, s.displayName);
+    if (s.groupingParam) setSessionGroupingParam(target, s.groupingParam);
   }
 });
 
