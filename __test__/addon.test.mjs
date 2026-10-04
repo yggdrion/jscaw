@@ -4,6 +4,7 @@ import {
   getDefaultDevice,
   getDevice,
   getEndpointVolume,
+  getSessionChannelVolumes,
   listDevices,
   listSessions,
   setEndpointChannelVolume,
@@ -12,6 +13,7 @@ import {
   setEndpointVolumeDb,
   setProcessMute,
   setProcessVolume,
+  setSessionChannelVolume,
   setSessionDisplayName,
   setSessionDuckingPreference,
   setSessionGroupingParam,
@@ -204,6 +206,56 @@ test('session setters target by instanceId and pid and can be restored', (t) => 
     setSessionMute(target, s.muted);
     setSessionDisplayName(target, s.displayName);
     if (s.groupingParam) setSessionGroupingParam(target, s.groupingParam);
+  }
+});
+
+test('session channel volume rejects malformed targets and matches nothing cleanly', () => {
+  for (const target of BAD_TARGETS) {
+    assert.throws(() => getSessionChannelVolumes(target), /exactly one/);
+    assert.throws(() => setSessionChannelVolume(target, 0, 0.5), /exactly one/);
+  }
+  for (const target of UNMATCHED_TARGETS) {
+    assert.deepEqual(getSessionChannelVolumes(target), []);
+    assert.equal(setSessionChannelVolume(target, 0, 0.5), 0);
+  }
+});
+
+test('setSessionChannelVolume rejects invalid volume and channel even when nothing matches', () => {
+  const target = { processName: 'does-not-exist.exe' };
+  for (const v of [-0.1, 1.1, NaN]) assert.throws(() => setSessionChannelVolume(target, 0, v));
+  for (const ch of [NaN, -1, 1.5, 2 ** 32]) {
+    assert.throws(() => setSessionChannelVolume(target, ch, 0.5), /channel must be/);
+  }
+});
+
+test('getSessionChannelVolumes returns per-channel scalars for listed sessions', () => {
+  for (const s of listSessions({ includeSystemSounds: true })) {
+    const result = getSessionChannelVolumes({ instanceId: s.instanceId });
+    assert.ok(result.length <= 1);
+    for (const channels of result) {
+      for (const v of channels) assert.ok(v >= 0 && v <= 1, `bad channel volume ${v}`);
+    }
+  }
+});
+
+// Opt-in: mutates a real session's channel volume.
+test('setSessionChannelVolume updates a real session and can be restored', (t) => {
+  const targetProcess = process.env.JSCAW_TEST_PROCESS;
+  if (!targetProcess) {
+    t.skip('set JSCAW_TEST_PROCESS to a running process name to run this check');
+    return;
+  }
+  const s = listSessions().find((x) => x.processName.toLowerCase() === targetProcess.toLowerCase());
+  assert.ok(s, `no active audio session found for ${targetProcess}`);
+  const target = { instanceId: s.instanceId };
+  const [before] = getSessionChannelVolumes(target);
+  assert.ok(before?.length > 0, 'session reports no channels');
+  try {
+    assert.equal(setSessionChannelVolume(target, 0, 0.2), 1);
+    assert.ok(Math.abs(getSessionChannelVolumes(target)[0][0] - 0.2) < 0.01);
+    assert.equal(setSessionChannelVolume(target, before.length, 0.5), 0); // out-of-range channel
+  } finally {
+    before.forEach((v, i) => setSessionChannelVolume(target, i, v));
   }
 });
 

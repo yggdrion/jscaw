@@ -59,6 +59,20 @@ pub fn set_session_ducking_preference(target: SessionTarget, opt_out: bool) -> n
 }
 
 #[napi]
+pub fn get_session_channel_volumes(target: SessionTarget) -> napi::Result<Vec<Vec<f64>>> {
+    sessions::get_channel_volumes(target)
+}
+
+#[napi]
+pub fn set_session_channel_volume(
+    target: SessionTarget,
+    channel: f64,
+    volume: f64,
+) -> napi::Result<u32> {
+    sessions::set_channel_volume(target, channel, volume)
+}
+
+#[napi]
 pub fn list_devices(options: Option<ListDevicesOptions>) -> napi::Result<Vec<Device>> {
     devices::list_devices(options)
 }
