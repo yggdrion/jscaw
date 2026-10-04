@@ -1,5 +1,6 @@
 use napi::{Error, Result, Status};
-use windows::core::HSTRING;
+use windows::core::{HRESULT, HSTRING};
+use windows::Win32::Foundation::E_INVALIDARG;
 use windows::Win32::Media::Audio::{
     eConsole, eRender, EDataFlow, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
 };
@@ -55,14 +56,18 @@ pub fn device_enumerator() -> Result<IMMDeviceEnumerator> {
         .map_err(|e| to_napi_err("failed to create audio device enumerator", e))
 }
 
-/// Maps "device not found" to `Ok(None)`; every other failure becomes a napi error.
+/// Maps "device not found" (plus any `also_missing` codes) to `Ok(None)`; every other
+/// failure becomes a napi error.
 fn missing_as_none(
     result: windows::core::Result<IMMDevice>,
     context: &str,
+    also_missing: &[HRESULT],
 ) -> Result<Option<IMMDevice>> {
     match result {
         Ok(device) => Ok(Some(device)),
-        Err(e) if e.code().0 == ERROR_NOT_FOUND_HRESULT => Ok(None),
+        Err(e) if e.code().0 == ERROR_NOT_FOUND_HRESULT || also_missing.contains(&e.code()) => {
+            Ok(None)
+        }
         Err(e) => Err(to_napi_err(context, e)),
     }
 }
@@ -72,6 +77,7 @@ pub fn default_device(flow: EDataFlow, role: ERole) -> Result<Option<IMMDevice>>
     missing_as_none(
         unsafe { enumerator.GetDefaultAudioEndpoint(flow, role) },
         "failed to get default audio endpoint",
+        &[],
     )
 }
 
@@ -84,6 +90,9 @@ pub fn resolve_device(device_id: Option<&str>) -> Result<Option<IMMDevice>> {
             missing_as_none(
                 unsafe { enumerator.GetDevice(&HSTRING::from(id)) },
                 "failed to get audio device",
+                // A malformed id (e.g. "" or arbitrary text) is rejected with E_INVALIDARG
+                // rather than E_NOTFOUND; to the caller it's equally "no such device".
+                &[E_INVALIDARG],
             )
         }
     }

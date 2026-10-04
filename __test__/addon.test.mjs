@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { listSessions, setProcessVolume, setProcessMute } from '../index.js';
+import {
+  getDefaultDevice,
+  getDevice,
+  listDevices,
+  listSessions,
+  setProcessMute,
+  setProcessVolume,
+} from '../index.js';
 
 test('listSessions returns an array of session-shaped objects', () => {
   const sessions = listSessions();
@@ -59,5 +66,71 @@ test('setProcessVolume/setProcessMute update a real session and can be restored'
       setProcessVolume(session.processName, session.volume);
       setProcessMute(session.processName, session.muted);
     }
+  }
+});
+
+const FLOWS = ['render', 'capture'];
+const STATES = ['active', 'disabled', 'notPresent', 'unplugged'];
+const assertDevice = (device) => {
+  assert.equal(typeof device.id, 'string');
+  assert.ok(device.id.length > 0);
+  assert.equal(typeof device.name, 'string');
+  assert.ok(FLOWS.includes(device.flow), `bad flow ${device.flow}`);
+  assert.ok(STATES.includes(device.state), `bad state ${device.state}`);
+};
+
+test('listDevices defaults to active devices of both flows', () => {
+  const devices = listDevices();
+  assert.ok(Array.isArray(devices));
+  for (const device of devices) {
+    assertDevice(device);
+    assert.equal(device.state, 'active');
+  }
+});
+
+test('listDevices filters by flow', () => {
+  for (const flow of FLOWS) {
+    assert.ok(listDevices({ flow }).every((d) => d.flow === flow));
+  }
+  assert.ok(Array.isArray(listDevices({ flow: 'all' })));
+});
+
+test('listDevices returns every requested state without failing on nameless devices', () => {
+  const devices = listDevices({ state: STATES });
+  devices.forEach(assertDevice);
+  assert.ok(devices.length >= listDevices().length);
+});
+
+test('listDevices with an empty state list returns []', () => {
+  assert.deepEqual(listDevices({ state: [] }), []);
+});
+
+test('listDevices rejects unknown enum values', () => {
+  assert.throws(() => listDevices({ flow: 'bogus' }));
+  assert.throws(() => listDevices({ state: ['bogus'] }));
+});
+
+test('getDefaultDevice returns a matching device or null for every flow/role', () => {
+  for (const flow of FLOWS) {
+    for (const role of ['console', 'multimedia', 'communications']) {
+      const device = getDefaultDevice(flow, role);
+      if (device === null) continue; // no device of this flow (e.g. CI)
+      assertDevice(device);
+      assert.equal(device.flow, flow);
+    }
+  }
+  const fallback = getDefaultDevice();
+  if (fallback !== null) assert.equal(fallback.flow, 'render');
+});
+
+test('getDevice returns null for unknown ids', () => {
+  assert.equal(getDevice('{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), null);
+  assert.equal(getDevice('not-a-device-id'), null);
+  assert.equal(getDevice(''), null);
+});
+
+test('getDevice round-trips ids from listDevices', () => {
+  for (const device of listDevices({ state: STATES })) {
+    assert.deepEqual(getDevice(device.id), device);
   }
 });

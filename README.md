@@ -1,7 +1,7 @@
 # jscaw
 
-Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list active Core
-Audio sessions and control per-process volume/mute. Works from Node.js and Bun.
+Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list audio devices
+and active Core Audio sessions, and control per-process volume/mute. Works from Node.js and Bun.
 
 ```ts
 import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
@@ -13,7 +13,26 @@ setProcessVolume('Discord.exe', 0.3); // returns the number of sessions updated
 setProcessMute('Discord.exe', true);
 ```
 
-See [`examples/basic.ts`](examples/basic.ts) for a runnable example.
+## Devices
+
+```ts
+import { getDefaultDevice, getDevice, listDevices } from 'jscaw';
+
+listDevices(); // active render + capture devices
+// [{ id: '{0.0.0.00000000}.{…}', name: 'Speakers (Realtek(R) Audio)', flow: 'render', state: 'active' }, ...]
+listDevices({ flow: 'capture', state: ['active', 'unplugged'] });
+getDefaultDevice(); // default speakers, or null
+getDefaultDevice('capture', 'communications'); // default comms microphone, or null
+getDevice(id); // null when the id is unknown
+```
+
+`listDevices` defaults to `flow: 'all'` and `state: ['active']`; `state` accepts any of
+`'active'`, `'disabled'`, `'notPresent'` and `'unplugged'`. `getDefaultDevice` defaults to
+`'render'` and the `'console'` role. `name` is the device's friendly name, falling back to its
+description. Machines with no audio devices get `[]`/`null` rather than errors.
+
+See [`examples/basic.ts`](examples/basic.ts) and [`examples/devices.ts`](examples/devices.ts)
+for runnable examples.
 
 ## Scope
 
@@ -29,9 +48,9 @@ See [`examples/basic.ts`](examples/basic.ts) for a runnable example.
 
 ## v1 exclusions
 
-No audio routing, no master/device volume control, no level meters, no change
-callbacks/notifications, and no audio playback. This package only enumerates existing
-sessions and adjusts their per-process volume/mute.
+No audio routing (devices can be listed, not switched), no master/device volume control, no level meters, no change
+callbacks/notifications, and no audio playback. This package only enumerates devices and existing
+sessions and adjusts sessions' per-process volume/mute.
 
 ## Releasing
 

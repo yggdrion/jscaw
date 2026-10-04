@@ -4,6 +4,7 @@ mod com;
 mod devices;
 mod sessions;
 
+use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
 use napi_derive::napi;
 
 #[napi(object)]
@@ -36,4 +37,22 @@ pub fn set_process_volume(process_name: String, volume: f64) -> napi::Result<u32
 #[napi]
 pub fn set_process_mute(process_name: String, muted: bool) -> napi::Result<u32> {
     sessions::set_mute_for_process(&process_name, muted)
+}
+
+#[napi]
+pub fn list_devices(options: Option<ListDevicesOptions>) -> napi::Result<Vec<Device>> {
+    devices::list_devices(options)
+}
+
+#[napi]
+pub fn get_default_device(
+    flow: Option<DeviceFlow>,
+    role: Option<DeviceRole>,
+) -> napi::Result<Option<Device>> {
+    devices::get_default_device(flow, role)
+}
+
+#[napi]
+pub fn get_device(id: String) -> napi::Result<Option<Device>> {
+    devices::get_device(id)
 }
