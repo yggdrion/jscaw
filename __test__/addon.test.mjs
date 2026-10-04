@@ -152,7 +152,7 @@ test('session setters return 0 when nothing matches', () => {
 
 const METADATA_SETTERS = [
   [() => setSessionDisplayName, 'name'],
-  [() => setSessionIconPath, 'C:\icon.ico'],
+  [() => setSessionIconPath, 'C:\\icon.ico'],
   [() => setSessionGroupingParam, '{6A1D3B2C-0000-4000-8000-00000000C0DE}'],
   [() => setSessionDuckingPreference, true],
 ];
