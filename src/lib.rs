@@ -2,9 +2,11 @@
 
 mod com;
 mod devices;
+mod endpoint;
 mod sessions;
 
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
+use endpoint::EndpointVolume;
 use napi_derive::napi;
 
 #[napi(object)]
@@ -55,4 +57,9 @@ pub fn get_default_device(
 #[napi]
 pub fn get_device(id: String) -> napi::Result<Option<Device>> {
     devices::get_device(id)
+}
+
+#[napi]
+pub fn get_endpoint_volume(device_id: Option<String>) -> napi::Result<Option<EndpointVolume>> {
+    endpoint::get_endpoint_volume(device_id.as_deref())
 }

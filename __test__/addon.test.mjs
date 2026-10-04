@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   getDefaultDevice,
   getDevice,
+  getEndpointVolume,
   listDevices,
   listSessions,
   setProcessMute,
@@ -132,5 +133,49 @@ test('getDevice returns null for unknown ids', () => {
 test('getDevice round-trips ids from listDevices', () => {
   for (const device of listDevices({ state: STATES })) {
     assert.deepEqual(getDevice(device.id), device);
+  }
+});
+
+const assertEndpointVolume = (ev) => {
+  for (const key of ['volume', 'volumeDb', 'hardwareSupport']) {
+    assert.equal(typeof ev[key], 'number', key);
+  }
+  assert.ok(ev.volume >= 0 && ev.volume <= 1);
+  assert.equal(typeof ev.muted, 'boolean');
+  assert.ok(Array.isArray(ev.channels));
+  for (const ch of ev.channels) {
+    assert.equal(typeof ch.volume, 'number');
+    assert.equal(typeof ch.volumeDb, 'number');
+  }
+  assert.ok(ev.range.minDb <= ev.range.maxDb);
+  assert.equal(typeof ev.range.incrementDb, 'number');
+  assert.ok(ev.step.current < Math.max(ev.step.count, 1));
+};
+
+test('getEndpointVolume returns the default render endpoint volume or null', () => {
+  const ev = getEndpointVolume();
+  if (ev === null) {
+    assert.equal(getDefaultDevice(), null);
+    return;
+  }
+  assertEndpointVolume(ev);
+});
+
+test('getEndpointVolume works for the default capture device', () => {
+  const mic = getDefaultDevice('capture');
+  if (mic === null) return; // no microphone (e.g. CI)
+  assertEndpointVolume(getEndpointVolume(mic.id));
+});
+
+test('getEndpointVolume returns null for unknown ids', () => {
+  assert.equal(getEndpointVolume('{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), null);
+  assert.equal(getEndpointVolume('not-a-device-id'), null);
+  assert.equal(getEndpointVolume(''), null);
+});
+
+test('getEndpointVolume never throws for devices in any state', () => {
+  for (const device of listDevices({ state: STATES })) {
+    const ev = getEndpointVolume(device.id);
+    if (ev !== null) assertEndpointVolume(ev);
   }
 });
