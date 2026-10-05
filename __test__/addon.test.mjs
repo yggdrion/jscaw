@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -10,6 +11,7 @@ import {
   getSessionPeak,
   listDevices,
   listSessions,
+  onDeviceEvent,
   setDefaultDevice,
   setEndpointChannelVolume,
   setEndpointMute,
@@ -537,4 +539,92 @@ test('setDefaultDevice switches every role and can be restored', (t) => {
     ROLES.forEach((role, i) => before[i] && setDefaultDevice(before[i].id, [role]));
   }
   ROLES.forEach((role, i) => assert.equal(getDefaultDevice(device.flow, role)?.id, before[i]?.id, role));
+});
+
+const ADDON_URL = new URL('../index.js', import.meta.url).href;
+
+/** Runs `body` in a child process with the addon imported as `m`. */
+function child(body, timeout = 10_000) {
+  const src = `const m = await import(${JSON.stringify(ADDON_URL)});
+${body}`;
+  return spawnSync(process.execPath, ['--input-type=module', '-e', src], { timeout, encoding: 'utf8' });
+}
+
+test('onDeviceEvent returns an idempotent unsubscribe', () => {
+  const unsubscribe = onDeviceEvent(() => {});
+  assert.equal(typeof unsubscribe, 'function');
+  unsubscribe();
+  unsubscribe();
+});
+
+test('onDeviceEvent rejects a non-function callback', () => {
+  assert.throws(() => onDeviceEvent(42));
+});
+
+test('a process exits cleanly while still subscribed', () => {
+  const r = child('m.onDeviceEvent(() => {}); setTimeout(() => process.exit(0), 200);');
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('unsubscribing lets the event loop drain', () => {
+  const r = child('const u = m.onDeviceEvent(() => {}); setTimeout(u, 100);', 5000);
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('a live subscription keeps the event loop alive', () => {
+  const r = child('m.onDeviceEvent(() => {});', 1000);
+  assert.equal(r.signal, 'SIGTERM', `exited early: ${r.status} ${r.stderr}`);
+});
+
+// Opt-in: switches the real console default. Needs JSCAW_TEST_DEVICE plus a second active
+// device of the same flow to switch away from first.
+test('onDeviceEvent reports default device changes', async (t) => {
+  const deviceId = process.env.JSCAW_TEST_DEVICE;
+  const device = deviceId && getDevice(deviceId);
+  const other = device && listDevices({ flow: device.flow }).find((d) => d.id !== deviceId);
+  if (!device || device.state !== 'active' || !other) {
+    t.skip('set JSCAW_TEST_DEVICE to an active device id (with a second active device) to run this check');
+    return;
+  }
+  const before = getDefaultDevice(device.flow, 'console');
+  const events = [];
+  const unsubscribe = onDeviceEvent((e) => events.push(e));
+  try {
+    setDefaultDevice(other.id, ['console']);
+    setDefaultDevice(deviceId, ['console']);
+    const matches = (e) =>
+      e.type === 'defaultChanged' && e.role === 'console' && e.flow === device.flow && e.deviceId === deviceId;
+    for (let i = 0; i < 30 && !events.some(matches); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(events.some(matches), JSON.stringify(events));
+  } finally {
+    unsubscribe();
+    if (before) setDefaultDevice(before.id, ['console']);
+  }
+});
+
+// Opt-in, like the test above: a burst of events must stop at the unsubscribe.
+test('no device events are delivered after unsubscribe', async (t) => {
+  const deviceId = process.env.JSCAW_TEST_DEVICE;
+  const device = deviceId && getDevice(deviceId);
+  const other = device && listDevices({ flow: device.flow }).find((d) => d.id !== deviceId);
+  if (!device || device.state !== 'active' || !other) {
+    t.skip('set JSCAW_TEST_DEVICE to an active device id (with a second active device) to run this check');
+    return;
+  }
+  const before = ROLES.map((role) => getDefaultDevice(device.flow, role));
+  let calls = 0;
+  const unsubscribe = onDeviceEvent(() => {
+    calls++;
+    unsubscribe();
+  });
+  try {
+    // Every role switch fires several events in one burst.
+    setDefaultDevice(other.id);
+    setDefaultDevice(deviceId);
+    await new Promise((r) => setTimeout(r, 1000));
+    assert.equal(calls, 1);
+  } finally {
+    unsubscribe();
+    ROLES.forEach((role, i) => before[i] && setDefaultDevice(before[i].id, [role]));
+  }
 });

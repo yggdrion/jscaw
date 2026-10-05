@@ -85,7 +85,7 @@ impl DeviceFlow {
         }
     }
 
-    fn from_windows(flow: EDataFlow) -> Option<Self> {
+    pub(crate) fn from_windows(flow: EDataFlow) -> Option<Self> {
         match flow {
             f if f == eRender => Some(Self::Render),
             f if f == eCapture => Some(Self::Capture),
@@ -114,7 +114,7 @@ impl DeviceState {
         }
     }
 
-    fn from_windows(state: DEVICE_STATE) -> Option<Self> {
+    pub(crate) fn from_windows(state: DEVICE_STATE) -> Option<Self> {
         [
             Self::Active,
             Self::Disabled,
@@ -133,6 +133,12 @@ impl DeviceRole {
             Self::Multimedia => eMultimedia,
             Self::Communications => eCommunications,
         }
+    }
+
+    pub(crate) fn from_windows(role: ERole) -> Option<Self> {
+        [Self::Console, Self::Multimedia, Self::Communications]
+            .into_iter()
+            .find(|r| r.to_windows() == role)
     }
 }
 
@@ -180,7 +186,7 @@ fn braced_guid(guid: &GUID) -> String {
 }
 
 /// pycaw's `str(PROPERTYKEY)`: `"{FMTID} pid"` with an uppercase, braced GUID.
-fn property_key_name(key: &PROPERTYKEY) -> String {
+pub(crate) fn property_key_name(key: &PROPERTYKEY) -> String {
     format!("{} {}", braced_guid(&key.fmtid), key.pid)
 }
 

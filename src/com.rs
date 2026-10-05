@@ -1,6 +1,6 @@
 use napi::{Error, Result, Status};
 use windows::core::{Interface, HRESULT, HSTRING, PWSTR};
-use windows::Win32::Foundation::E_INVALIDARG;
+use windows::Win32::Foundation::{E_INVALIDARG, RPC_E_CHANGED_MODE};
 use windows::Win32::Media::Audio::{
     eConsole, eRender, EDataFlow, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
 };
@@ -44,19 +44,27 @@ pub fn to_napi_err(context: &str, err: windows::core::Error) -> Error {
 
 /// RAII guard: initializes COM (MTA) for the calling thread on construction and
 /// uninitializes on drop. Synchronous napi calls run on the JS thread, so this pairs one
-/// init/uninit per call on that thread.
-pub struct ComGuard;
+/// init/uninit per call on that thread. A thread that is already STA (e.g. Electron's main
+/// thread) returns `RPC_E_CHANGED_MODE`: COM is usable there, but the init isn't ours to undo.
+pub struct ComGuard {
+    owns_init: bool,
+}
 
 impl ComGuard {
     pub fn new() -> windows::core::Result<Self> {
-        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok()? };
-        Ok(Self)
+        match unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok() {
+            Ok(()) => Ok(Self { owns_init: true }),
+            Err(e) if e.code() == RPC_E_CHANGED_MODE => Ok(Self { owns_init: false }),
+            Err(e) => Err(e),
+        }
     }
 }
 
 impl Drop for ComGuard {
     fn drop(&mut self) {
-        unsafe { CoUninitialize() };
+        if self.owns_init {
+            unsafe { CoUninitialize() };
+        }
     }
 }
 
@@ -156,7 +164,28 @@ pub unsafe fn take_co_string(raw: PWSTR) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_index, validate_volume};
+    use super::{validate_index, validate_volume, ComGuard};
+    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
+
+    #[test]
+    fn com_guard_owns_a_fresh_mta_init() {
+        std::thread::spawn(|| assert!(ComGuard::new().unwrap().owns_init))
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn com_guard_tolerates_an_sta_thread() {
+        std::thread::spawn(|| unsafe {
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok().unwrap();
+            let guard = ComGuard::new().unwrap();
+            assert!(!guard.owns_init);
+            drop(guard);
+            CoUninitialize();
+        })
+        .join()
+        .unwrap();
+    }
 
     #[test]
     fn validate_index_names_the_argument() {
