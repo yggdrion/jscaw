@@ -1,8 +1,8 @@
 # jscaw
 
 Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list audio devices
-and active Core Audio sessions, control device (master) and per-process volume/mute, and read
-peak levels. Works from Node.js and Bun.
+and active Core Audio sessions, switch the default device, control device (master) and
+per-process volume/mute, and read peak levels. Works from Node.js and Bun.
 
 ```ts
 import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
@@ -31,6 +31,19 @@ getDevice(id); // null when the id is unknown
 `'active'`, `'disabled'`, `'notPresent'` and `'unplugged'`. `getDefaultDevice` defaults to
 `'render'` and the `'console'` role. `name` is the device's friendly name, falling back to its
 description. Machines with no audio devices get `[]`/`null` rather than errors.
+
+## Default device
+
+```ts
+import { setDefaultDevice } from 'jscaw';
+
+setDefaultDevice(id); // all roles: 'console', 'multimedia' and 'communications'
+setDefaultDevice(id, ['communications']); // only the default comms device
+```
+
+Returns `false` when `id` is not a known device, and throws when Windows rejects the switch
+(e.g. a disabled device). Works for capture devices too. This relies on the undocumented
+`IPolicyConfig` Windows API (the one the Sound control panel uses), so it needs Windows 10+.
 
 ## Endpoint volume
 
@@ -117,6 +130,7 @@ nothing is playing, and a microphone's meter only moves while some app is captur
 `getSessionPeak` takes a `SessionTarget` and returns `[]` when nothing matches.
 
 See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts),
+[`examples/default-device.ts`](examples/default-device.ts),
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
 [`examples/sessions.ts`](examples/sessions.ts) and [`examples/meters.ts`](examples/meters.ts)
 for runnable examples.
@@ -135,8 +149,7 @@ for runnable examples.
 
 ## v1 exclusions
 
-No audio routing (devices can be listed, not switched), no change callbacks/notifications,
-and no audio playback.
+No change callbacks/notifications and no audio playback.
 
 ## Releasing
 

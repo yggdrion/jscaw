@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-The native addon lives in `src/`: `lib.rs` exposes the Node-API surface; `com.rs` holds COM init, error mapping, device resolution and endpoint activation; `sessions.rs` holds audio-session enumeration, `SessionTarget` matching and per-session volume/mute/channel-volume/peak/metadata getters and setters; `devices.rs` holds endpoint device enumeration; `endpoint.rs` holds endpoint (master) volume and the endpoint peak meter. `build.rs` configures napi-rs builds. JavaScript integration tests are in `__test__/addon.test.mjs`, and `examples/basic.ts` demonstrates the public API. Platform package metadata lives under `npm/win32-*-msvc/`. Release documentation and automation are in `docs/RELEASING.md`, `scripts/release.mjs`, and `.github/workflows/CI.yml`.
+The native addon lives in `src/`: `lib.rs` exposes the Node-API surface; `com.rs` holds COM init, error mapping, device resolution and endpoint activation; `sessions.rs` holds audio-session enumeration, `SessionTarget` matching and per-session volume/mute/channel-volume/peak/metadata getters and setters; `devices.rs` holds endpoint device enumeration; `endpoint.rs` holds endpoint (master) volume and the endpoint peak meter; `policy_config.rs` holds default-device switching via the undocumented `IPolicyConfig`. `build.rs` configures napi-rs builds. JavaScript integration tests are in `__test__/addon.test.mjs`, and `examples/basic.ts` demonstrates the public API. Platform package metadata lives under `npm/win32-*-msvc/`. Release documentation and automation are in `docs/RELEASING.md`, `scripts/release.mjs`, and `.github/workflows/CI.yml`.
 
 ## Build, Test, and Development Commands
 

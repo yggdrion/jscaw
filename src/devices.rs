@@ -123,7 +123,7 @@ impl DeviceState {
 }
 
 impl DeviceRole {
-    fn to_windows(self) -> ERole {
+    pub(crate) fn to_windows(self) -> ERole {
         match self {
             Self::Console => eConsole,
             Self::Multimedia => eMultimedia,
@@ -168,7 +168,7 @@ fn to_device(device: &IMMDevice) -> Option<Device> {
     }
 }
 
-fn com_guard() -> Result<ComGuard> {
+pub(crate) fn com_guard() -> Result<ComGuard> {
     ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))
 }
 

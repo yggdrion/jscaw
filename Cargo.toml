@@ -11,6 +11,8 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
+# Needed by `#[windows::core::interface]`, which expands to `::windows_core` paths.
+windows-core = "0.62"
 
 [dependencies.windows]
 version = "0.62"
