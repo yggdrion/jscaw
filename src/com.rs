@@ -50,6 +50,11 @@ pub fn event_context() -> *const GUID {
     EVENT_CONTEXT.get_or_init(|| GUID::new().unwrap_or_default())
 }
 
+/// True when a notification's event context is ours, i.e. a jscaw setter in this process made it.
+pub fn is_self_initiated(context: &GUID) -> bool {
+    *context == unsafe { *event_context() }
+}
+
 /// RAII guard: initializes COM (MTA) for the calling thread on construction and
 /// uninitializes on drop. Synchronous napi calls run on the JS thread, so this pairs one
 /// init/uninit per call on that thread. A thread that is already STA (e.g. Electron's main
@@ -172,7 +177,8 @@ pub unsafe fn take_co_string(raw: PWSTR) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_index, validate_volume, ComGuard};
+    use super::{event_context, is_self_initiated, validate_index, validate_volume, ComGuard};
+    use windows::core::GUID;
     use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
 
     #[test]
@@ -193,6 +199,13 @@ mod tests {
         })
         .join()
         .unwrap();
+    }
+
+    #[test]
+    fn only_our_event_context_is_self_initiated() {
+        assert!(is_self_initiated(unsafe { &*event_context() }));
+        assert!(!is_self_initiated(&GUID::zeroed()));
+        assert!(!is_self_initiated(&GUID::from_u128(1)));
     }
 
     #[test]
