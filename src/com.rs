@@ -1,5 +1,6 @@
 use napi::{Error, Result, Status};
-use windows::core::{Interface, HRESULT, HSTRING, PWSTR};
+use std::sync::OnceLock;
+use windows::core::{Interface, GUID, HRESULT, HSTRING, PWSTR};
 use windows::Win32::Foundation::{E_INVALIDARG, RPC_E_CHANGED_MODE};
 use windows::Win32::Media::Audio::{
     eConsole, eRender, EDataFlow, ERole, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
@@ -40,6 +41,13 @@ pub fn to_napi_err(context: &str, err: windows::core::Error) -> Error {
             err.code().0 as u32
         ),
     )
+}
+
+/// Random per process (pycaw magic's `uuid4` trick): every jscaw setter passes it as the
+/// change's event context, so notifications can tell our own changes from external ones.
+pub fn event_context() -> *const GUID {
+    static EVENT_CONTEXT: OnceLock<GUID> = OnceLock::new();
+    EVENT_CONTEXT.get_or_init(|| GUID::new().unwrap_or_default())
 }
 
 /// RAII guard: initializes COM (MTA) for the calling thread on construction and

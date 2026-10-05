@@ -1,11 +1,10 @@
 use crate::com::{
-    activate, is_missing_device, resolve_device, take_co_string, to_napi_err, validate_index,
-    validate_volume, ComGuard,
+    activate, event_context, is_missing_device, resolve_device, take_co_string, to_napi_err,
+    validate_index, validate_volume, ComGuard,
 };
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use std::path::Path;
-use std::ptr::null;
 use windows::core::{Interface, GUID, HSTRING, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, MAX_PATH, S_OK};
 use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
@@ -270,13 +269,15 @@ pub fn set_volume(target: SessionTarget, volume: f64) -> Result<u32> {
     apply_to(target, |control| unsafe {
         control
             .cast::<ISimpleAudioVolume>()?
-            .SetMasterVolume(volume as f32, null())
+            .SetMasterVolume(volume as f32, event_context())
     })
 }
 
 pub fn set_mute(target: SessionTarget, muted: bool) -> Result<u32> {
     apply_to(target, |control| unsafe {
-        control.cast::<ISimpleAudioVolume>()?.SetMute(muted, null())
+        control
+            .cast::<ISimpleAudioVolume>()?
+            .SetMute(muted, event_context())
     })
 }
 
@@ -307,9 +308,11 @@ pub fn set_channel_volume(target: SessionTarget, channel: f64, volume: f64) -> R
     let channel = validate_index("channel", channel)?;
     validate_volume(volume)?;
     apply_to(target, |control| unsafe {
-        control
-            .cast::<IChannelAudioVolume>()?
-            .SetChannelVolume(channel, volume as f32, null())
+        control.cast::<IChannelAudioVolume>()?.SetChannelVolume(
+            channel,
+            volume as f32,
+            event_context(),
+        )
     })
 }
 
@@ -330,21 +333,21 @@ fn parse_guid(value: &str) -> Result<GUID> {
 pub fn set_display_name(target: SessionTarget, name: String) -> Result<u32> {
     let name = HSTRING::from(name);
     apply_to(target, |control| unsafe {
-        control.SetDisplayName(&name, null())
+        control.SetDisplayName(&name, event_context())
     })
 }
 
 pub fn set_icon_path(target: SessionTarget, path: String) -> Result<u32> {
     let path = HSTRING::from(path);
     apply_to(target, |control| unsafe {
-        control.SetIconPath(&path, null())
+        control.SetIconPath(&path, event_context())
     })
 }
 
 pub fn set_grouping_param(target: SessionTarget, param: String) -> Result<u32> {
     let guid = parse_guid(&param)?;
     apply_to(target, |control| unsafe {
-        control.SetGroupingParam(&guid, null())
+        control.SetGroupingParam(&guid, event_context())
     })
 }
 

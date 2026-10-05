@@ -1,9 +1,8 @@
 use crate::com::{
-    activate, resolve_device, to_napi_err, validate_index, validate_volume, ComGuard,
+    activate, event_context, resolve_device, to_napi_err, validate_index, validate_volume, ComGuard,
 };
 use napi::{Error, Result, Status};
 use napi_derive::napi;
-use std::ptr::null;
 use windows::core::Interface;
 use windows::Win32::Media::Audio::Endpoints::{IAudioEndpointVolume, IAudioMeterInformation};
 
@@ -151,7 +150,7 @@ fn applied(result: Result<Option<()>>) -> Result<bool> {
 pub fn set_volume(volume: f64, device_id: Option<&str>) -> Result<bool> {
     validate_volume(volume)?;
     applied(with_endpoint(device_id, |ep| {
-        unsafe { ep.SetMasterVolumeLevelScalar(volume as f32, null()) }
+        unsafe { ep.SetMasterVolumeLevelScalar(volume as f32, event_context()) }
             .map_err(|e| to_napi_err("failed to set endpoint volume", e))
     }))
 }
@@ -167,14 +166,14 @@ pub fn set_volume_db(db: f64, device_id: Option<&str>) -> Result<bool> {
     applied(with_endpoint(device_id, |ep| {
         let (min_db, max_db, _) = volume_range(ep)?;
         validate_db(db, min_db, max_db)?;
-        unsafe { ep.SetMasterVolumeLevel(db as f32, null()) }
+        unsafe { ep.SetMasterVolumeLevel(db as f32, event_context()) }
             .map_err(|e| to_napi_err("failed to set endpoint volume (dB)", e))
     }))
 }
 
 pub fn set_mute(muted: bool, device_id: Option<&str>) -> Result<bool> {
     applied(with_endpoint(device_id, |ep| {
-        unsafe { ep.SetMute(muted, null()) }
+        unsafe { ep.SetMute(muted, event_context()) }
             .map_err(|e| to_napi_err("failed to set endpoint mute", e))
     }))
 }
@@ -186,7 +185,7 @@ pub fn set_channel_volume(channel: f64, volume: f64, device_id: Option<&str>) ->
         let count = unsafe { ep.GetChannelCount() }
             .map_err(|e| to_napi_err("failed to read endpoint channel count", e))?;
         validate_channel(channel, count)?;
-        unsafe { ep.SetChannelVolumeLevelScalar(channel, volume as f32, null()) }
+        unsafe { ep.SetChannelVolumeLevelScalar(channel, volume as f32, event_context()) }
             .map_err(|e| to_napi_err("failed to set endpoint channel volume", e))
     }))
 }
@@ -195,8 +194,8 @@ pub fn step(direction: StepDirection, device_id: Option<&str>) -> Result<bool> {
     applied(with_endpoint(device_id, |ep| {
         unsafe {
             match direction {
-                StepDirection::Up => ep.VolumeStepUp(null()),
-                StepDirection::Down => ep.VolumeStepDown(null()),
+                StepDirection::Up => ep.VolumeStepUp(event_context()),
+                StepDirection::Down => ep.VolumeStepDown(event_context()),
             }
         }
         .map_err(|e| to_napi_err("failed to step endpoint volume", e))

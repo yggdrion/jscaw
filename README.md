@@ -109,6 +109,23 @@ Every function takes an optional trailing `deviceId` (from `listDevices()`); wit
 default render (`console`) device is used. Setters return `false` instead of throwing when the
 device is missing, disabled or unplugged; invalid values throw.
 
+### Endpoint volume events
+
+```ts
+import { onEndpointVolumeChange } from 'jscaw';
+
+const unsubscribe = onEndpointVolumeChange((event) => {
+  // { volume: 0.42, muted: false, channelVolumes: [0.42, 0.42], selfInitiated: false }
+  console.log(event);
+}, micId); // deviceId optional: default speakers when omitted
+unsubscribe?.(); // null when the device doesn't exist
+```
+
+This is pycaw's `AudioEndpointVolumeCallback`. `selfInitiated` is `true` when a jscaw setter in
+this process made the change (every setter tags its changes with a per-process event context),
+and `false` for changes from the Windows mixer, media keys or other apps. Subscriptions behave
+like `onDeviceEvent`: they keep the process alive until `unsubscribe()` and are cleaned up on exit.
+
 ## Sessions
 
 ```ts
@@ -170,6 +187,7 @@ See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/d
 [`examples/default-device.ts`](examples/default-device.ts),
 [`examples/device-events.ts`](examples/device-events.ts),
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
+[`examples/endpoint-volume-events.ts`](examples/endpoint-volume-events.ts),
 [`examples/sessions.ts`](examples/sessions.ts) and [`examples/meters.ts`](examples/meters.ts)
 for runnable examples.
 
@@ -187,8 +205,8 @@ for runnable examples.
 
 ## v1 exclusions
 
-No audio playback. Volume and session change notifications are not available yet; device
-events are (see above).
+No audio playback. Session change notifications are not available yet; device and endpoint
+volume events are (see above).
 
 ## Releasing
 

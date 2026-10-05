@@ -1,12 +1,10 @@
-use super::{subscribe, Subscription};
+use super::{gated_tsfn, subscribe, EventTsfn, Subscription};
 use crate::com::{device_enumerator, to_napi_err};
 use crate::devices::{com_guard, property_key_name, DeviceFlow, DeviceRole, DeviceState};
 use napi::bindgen_prelude::{Either, Function, Null, Unknown};
-use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi::{Env, Result};
 use napi_derive::napi;
-use std::cell::Cell;
-use std::rc::Rc;
 use windows::core::{implement, PCWSTR};
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::{
@@ -64,12 +62,10 @@ fn property_changed(device_id: String, key: &PROPERTYKEY) -> DeviceEvent {
     }
 }
 
-type DeviceTsfn = ThreadsafeFunction<DeviceEvent, (), DeviceEvent, napi::Status, false>;
-
 /// Receives MMDevAPI callbacks on its own worker thread and queues them to JS.
 #[implement(IMMNotificationClient)]
 struct DeviceNotifier {
-    tsfn: DeviceTsfn,
+    tsfn: EventTsfn<DeviceEvent>,
 }
 
 impl DeviceNotifier {
@@ -129,20 +125,7 @@ pub fn on_device_event<'e>(
 ) -> Result<Function<'e, (), ()>> {
     let com = com_guard()?;
     let enumerator = device_enumerator()?;
-    // Events already queued when `unsubscribe()` runs are still dispatched by Node, so the
-    // threadsafe function targets this gate, which drops them once `active` is cleared.
-    let active = Rc::new(Cell::new(true));
-    let gate_active = active.clone();
-    let user = callback.create_ref()?;
-    let gate =
-        env.create_function_from_closure::<DeviceEvent, (), _>("onDeviceEvent", move |ctx| {
-            if gate_active.get() {
-                user.borrow_back(ctx.env)?
-                    .call(ctx.get::<Unknown<'static>>(0)?)?;
-            }
-            Ok(())
-        })?;
-    let tsfn: DeviceTsfn = gate.build_threadsafe_function().build()?;
+    let (tsfn, active) = gated_tsfn(env, "onDeviceEvent", callback)?;
     let client: IMMNotificationClient = DeviceNotifier { tsfn }.into();
     unsafe { enumerator.RegisterEndpointNotificationCallback(&client) }
         .map_err(|e| to_napi_err("failed to register device notifications", e))?;
