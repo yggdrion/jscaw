@@ -12,6 +12,7 @@ import {
   listDevices,
   listSessions,
   onDeviceEvent,
+  onEndpointVolumeChange,
   setDefaultDevice,
   setEndpointChannelVolume,
   setEndpointMute,
@@ -626,5 +627,58 @@ test('no device events are delivered after unsubscribe', async (t) => {
   } finally {
     unsubscribe();
     ROLES.forEach((role, i) => before[i] && setDefaultDevice(before[i].id, [role]));
+  }
+});
+
+test('onEndpointVolumeChange returns null for unknown devices', () => {
+  assert.equal(onEndpointVolumeChange(() => {}, '{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), null);
+  assert.equal(onEndpointVolumeChange(() => {}, 'not-a-device-id'), null);
+});
+
+test('onEndpointVolumeChange rejects a non-function callback', () => {
+  assert.throws(() => onEndpointVolumeChange(42));
+});
+
+test('onEndpointVolumeChange returns an idempotent unsubscribe', () => {
+  const unsubscribe = onEndpointVolumeChange(() => {});
+  if (unsubscribe === null) return; // no default render device (e.g. CI)
+  assert.equal(typeof unsubscribe, 'function');
+  unsubscribe();
+  unsubscribe();
+});
+
+test('a process exits cleanly while subscribed to endpoint volume', () => {
+  const r = child('m.onEndpointVolumeChange(() => {}); setTimeout(() => process.exit(0), 200);');
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('unsubscribing from endpoint volume lets the event loop drain', () => {
+  const r = child('const u = m.onEndpointVolumeChange(() => {}); setTimeout(() => u?.(), 100);', 5000);
+  assert.equal(r.status, 0, r.stderr);
+});
+
+// Opt-in: mutates a real device's volume, like the endpoint setter test above.
+test('onEndpointVolumeChange reports our own changes as selfInitiated', async (t) => {
+  const deviceId = process.env.JSCAW_TEST_DEVICE;
+  const before = deviceId && getEndpointVolume(deviceId);
+  if (!before) {
+    t.skip('set JSCAW_TEST_DEVICE to an active device id to run this check');
+    return;
+  }
+  const target = before.volume > 0.5 ? 0.25 : 0.75;
+  const events = [];
+  const unsubscribe = onEndpointVolumeChange((e) => events.push(e), deviceId);
+  try {
+    setEndpointVolume(target, deviceId);
+    const matches = (e) => Math.abs(e.volume - target) < 0.01;
+    for (let i = 0; i < 30 && !events.some(matches); i++) await new Promise((r) => setTimeout(r, 100));
+    const event = events.find(matches);
+    assert.ok(event, JSON.stringify(events));
+    assert.equal(event.selfInitiated, true);
+    assert.equal(typeof event.muted, 'boolean');
+    assert.equal(event.channelVolumes.length, before.channels.length);
+  } finally {
+    unsubscribe();
+    setEndpointVolume(before.volume, deviceId);
   }
 });

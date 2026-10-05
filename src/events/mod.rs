@@ -2,12 +2,15 @@
 //! registrations, each unregistered when its JS `unsubscribe()` runs or the env tears down.
 
 pub mod device;
+pub mod endpoint;
 
 use crate::com::ComGuard;
-use napi::bindgen_prelude::Function;
+use napi::bindgen_prelude::{Function, JsValuesTupleIntoVec, Unknown};
+use napi::threadsafe_function::ThreadsafeFunction;
 use napi::{Env, Result};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 /// One live registration. `unregister` runs on drop, before `_com` releases the thread's COM
 /// init, and drops whatever it captured (COM objects, the threadsafe function) with it.
@@ -79,6 +82,30 @@ pub fn subscribe(env: &Env, sub: Subscription) -> Result<Function<'_, (), ()>> {
         remove(id);
         Ok(())
     })
+}
+
+/// Queues events of type `T` from any thread to the JS thread.
+pub type EventTsfn<T> = ThreadsafeFunction<T, (), T, napi::Status, false>;
+
+/// Wraps `callback` in a threadsafe function. Events already queued when `unsubscribe()` runs
+/// are still dispatched by Node, so it targets a gate that drops them once the returned flag
+/// is cleared; the `unregister` closure clears it.
+pub fn gated_tsfn<T: JsValuesTupleIntoVec + 'static>(
+    env: &Env,
+    name: &str,
+    callback: Function<Unknown<'static>, ()>,
+) -> Result<(EventTsfn<T>, Rc<Cell<bool>>)> {
+    let active = Rc::new(Cell::new(true));
+    let gate_active = active.clone();
+    let user = callback.create_ref()?;
+    let gate = env.create_function_from_closure::<T, (), _>(name, move |ctx| {
+        if gate_active.get() {
+            user.borrow_back(ctx.env)?
+                .call(ctx.get::<Unknown<'static>>(0)?)?;
+        }
+        Ok(())
+    })?;
+    Ok((gate.build_threadsafe_function().build()?, active))
 }
 
 #[cfg(test)]

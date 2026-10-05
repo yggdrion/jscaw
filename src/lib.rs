@@ -167,3 +167,19 @@ pub fn on_device_event<'e>(
 ) -> napi::Result<Function<'e, (), ()>> {
     events::device::on_device_event(env, callback)
 }
+
+/// Subscribes to master volume, mute and channel volume changes on `deviceId` (default render
+/// device when omitted). Returns `null` when the device doesn't exist; otherwise the
+/// subscription keeps the process alive until the returned `unsubscribe` is called.
+#[napi(
+    strict,
+    ts_args_type = "callback: (event: EndpointVolumeEvent) => void, deviceId?: string",
+    ts_return_type = "(() => void) | null"
+)]
+pub fn on_endpoint_volume_change<'e>(
+    env: &'e Env,
+    callback: Function<Unknown<'static>, ()>,
+    device_id: Option<String>,
+) -> napi::Result<Option<Function<'e, (), ()>>> {
+    events::endpoint::on_endpoint_volume_change(env, callback, device_id.as_deref())
+}
