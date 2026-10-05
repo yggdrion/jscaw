@@ -11,7 +11,7 @@ use windows::Win32::Foundation::{CloseHandle, MAX_PATH, S_OK};
 use windows::Win32::Media::Audio::{
     AudioSessionState, AudioSessionStateActive, AudioSessionStateExpired,
     AudioSessionStateInactive, IAudioSessionControl2, IAudioSessionEnumerator,
-    IAudioSessionManager2, ISimpleAudioVolume,
+    IAudioSessionManager2, IChannelAudioVolume, ISimpleAudioVolume,
 };
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -183,8 +183,7 @@ pub fn list_sessions(options: Option<ListSessionsOptions>) -> Result<Vec<AudioSe
 /// (default render endpoint when omitted).
 #[napi(object)]
 pub struct SessionTarget {
-    /// Taken as a JS number and checked here: napi's `u32` conversion silently turns NaN into 0
-    /// (system sounds) and -1 into `u32::MAX`.
+    /// Taken as a JS number and checked by `validate_index`.
     pub pid: Option<f64>,
     pub process_name: Option<String>,
     pub instance_id: Option<String>,
@@ -198,14 +197,16 @@ enum Matcher {
     InstanceId(String),
 }
 
-fn validate_pid(pid: f64) -> Result<u32> {
-    if pid.fract() != 0.0 || !(0.0..=u32::MAX as f64).contains(&pid) {
+/// JS numbers arrive as `f64`: napi's `u32` conversion silently turns NaN into 0 and -1 into
+/// `u32::MAX`, so integer arguments are checked here.
+fn validate_index(name: &str, value: f64) -> Result<u32> {
+    if value.fract() != 0.0 || !(0.0..=u32::MAX as f64).contains(&value) {
         return Err(Error::new(
             Status::InvalidArg,
-            format!("pid must be a non-negative integer, got {pid}"),
+            format!("{name} must be a non-negative integer, got {value}"),
         ));
     }
-    Ok(pid as u32)
+    Ok(value as u32)
 }
 
 impl SessionTarget {
@@ -220,7 +221,7 @@ impl SessionTarget {
 
     fn into_matcher(self) -> Result<(Matcher, Option<String>)> {
         let matcher = match (self.pid, self.process_name, self.instance_id) {
-            (Some(pid), None, None) => Matcher::Pid(validate_pid(pid)?),
+            (Some(pid), None, None) => Matcher::Pid(validate_index("pid", pid)?),
             (None, Some(name), None) => Matcher::ProcessName(name),
             (None, None, Some(id)) => Matcher::InstanceId(id),
             _ => {
@@ -252,16 +253,27 @@ impl Matcher {
     }
 }
 
+/// Calls `f` on every session matching `target`, collecting its `Some` results.
+fn map_matching<T>(
+    target: SessionTarget,
+    mut f: impl FnMut(&IAudioSessionControl2) -> Option<T>,
+) -> Result<Vec<T>> {
+    let (matcher, device_id) = target.into_matcher()?;
+    each_session(device_id.as_deref(), |control, pid| {
+        if matcher.matches(control, pid) {
+            f(control)
+        } else {
+            None
+        }
+    })
+}
+
 /// Calls `apply` on every session matching `target`; returns how many accepted it.
 fn apply_to(
     target: SessionTarget,
     mut apply: impl FnMut(&IAudioSessionControl2) -> windows::core::Result<()>,
 ) -> Result<u32> {
-    let (matcher, device_id) = target.into_matcher()?;
-    let applied = each_session(device_id.as_deref(), |control, pid| {
-        (matcher.matches(control, pid) && apply(control).is_ok()).then_some(())
-    })?;
-    Ok(applied.len() as u32)
+    Ok(map_matching(target, |control| apply(control).ok())?.len() as u32)
 }
 
 pub fn set_volume(target: SessionTarget, volume: f64) -> Result<u32> {
@@ -276,6 +288,27 @@ pub fn set_volume(target: SessionTarget, volume: f64) -> Result<u32> {
 pub fn set_mute(target: SessionTarget, muted: bool) -> Result<u32> {
     apply_to(target, |control| unsafe {
         control.cast::<ISimpleAudioVolume>()?.SetMute(muted, null())
+    })
+}
+
+/// One array of 0..1 channel volumes per matching session; sessions that can't be read are skipped.
+pub fn get_channel_volumes(target: SessionTarget) -> Result<Vec<Vec<f64>>> {
+    map_matching(target, |control| unsafe {
+        let channels = control.cast::<IChannelAudioVolume>().ok()?;
+        (0..channels.GetChannelCount().ok()?)
+            .map(|i| channels.GetChannelVolume(i).ok().map(f64::from))
+            .collect()
+    })
+}
+
+/// A session without `channel` rejects it (`E_INVALIDARG`) and isn't counted.
+pub fn set_channel_volume(target: SessionTarget, channel: f64, volume: f64) -> Result<u32> {
+    let channel = validate_index("channel", channel)?;
+    validate_volume(volume)?;
+    apply_to(target, |control| unsafe {
+        control
+            .cast::<IChannelAudioVolume>()?
+            .SetChannelVolume(channel, volume as f32, null())
     })
 }
 
@@ -376,6 +409,13 @@ mod tests {
             assert!(t(Some(bad), None, None).into_matcher().is_err(), "{bad}");
         }
         assert!(t(Some(4294967295.0), None, None).into_matcher().is_ok());
+    }
+
+    #[test]
+    fn validate_index_names_the_argument() {
+        assert_eq!(validate_index("channel", 2.0).unwrap(), 2);
+        let err = validate_index("channel", f64::NAN).unwrap_err();
+        assert!(err.reason.contains("channel must be"), "{}", err.reason);
     }
 
     #[test]

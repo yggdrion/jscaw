@@ -1,4 +1,4 @@
-import { getDefaultDevice, listSessions } from 'jscaw';
+import { getDefaultDevice, getSessionChannelVolumes, listSessions } from 'jscaw';
 
 const mic = getDefaultDevice('capture');
 for (const [label, deviceId] of [['speakers', undefined], ['microphone', mic?.id]] as const) {
@@ -10,9 +10,12 @@ for (const [label, deviceId] of [['speakers', undefined], ['microphone', mic?.id
       `  ${name} (pid ${s.pid}, ${s.state}): ${Math.round(s.volume * 100)}%` +
         `${s.muted ? ' [muted]' : ''} instance=${s.instanceId}`,
     );
+    const [channels] = getSessionChannelVolumes({ instanceId: s.instanceId });
+    if (channels) console.log(`    channels: ${channels.map((v) => Math.round(v * 100) + '%').join(' / ')}`);
   }
 }
 // Mutating calls, all returning the number of sessions changed:
 // setSessionVolume({ processName: 'Discord.exe' }, 0.3); setSessionMute({ pid: 1234 }, true);
 // setSessionDisplayName({ instanceId }, 'Game'); setSessionGroupingParam({ instanceId }, '{…}');
 // setSessionDuckingPreference({ processName: 'Spotify.exe' }, true);
+// setSessionChannelVolume({ instanceId }, 0, 0.5);
