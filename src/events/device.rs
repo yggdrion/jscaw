@@ -1,8 +1,15 @@
-use crate::devices::{property_key_name, DeviceFlow, DeviceRole, DeviceState};
-use napi::bindgen_prelude::{Either, Null};
+use super::{subscribe, Subscription};
+use crate::com::{device_enumerator, to_napi_err};
+use crate::devices::{com_guard, property_key_name, DeviceFlow, DeviceRole, DeviceState};
+use napi::bindgen_prelude::{Either, Function, Null};
+use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use napi::{Env, Result};
 use napi_derive::napi;
+use windows::core::{implement, PCWSTR};
 use windows::Win32::Foundation::PROPERTYKEY;
-use windows::Win32::Media::Audio::{EDataFlow, ERole, DEVICE_STATE};
+use windows::Win32::Media::Audio::{
+    EDataFlow, ERole, IMMNotificationClient, IMMNotificationClient_Impl, DEVICE_STATE,
+};
 
 /// pycaw's `MMNotificationClient` callbacks as one tagged union, discriminated by `type`.
 /// `defaultChanged.deviceId` is `null` when the flow/role no longer has a default device;
@@ -53,6 +60,85 @@ fn property_changed(device_id: String, key: &PROPERTYKEY) -> DeviceEvent {
         device_id,
         key: property_key_name(key),
     }
+}
+
+type DeviceTsfn = ThreadsafeFunction<DeviceEvent, (), DeviceEvent, napi::Status, false>;
+
+/// Receives MMDevAPI callbacks on its own worker thread and queues them to JS.
+#[implement(IMMNotificationClient)]
+struct DeviceNotifier {
+    tsfn: DeviceTsfn,
+}
+
+impl DeviceNotifier {
+    fn emit(&self, event: Option<DeviceEvent>) {
+        if let Some(event) = event {
+            // Fails only once the env is closing, when nobody is listening anyway.
+            self.tsfn
+                .call(event, ThreadsafeFunctionCallMode::NonBlocking);
+        }
+    }
+}
+
+/// # Safety
+/// `id` is a valid, NUL-terminated wide string for the duration of the callback.
+unsafe fn id_string(id: &PCWSTR) -> String {
+    id.to_string().unwrap_or_default()
+}
+
+impl IMMNotificationClient_Impl for DeviceNotifier_Impl {
+    fn OnDeviceStateChanged(&self, id: &PCWSTR, state: DEVICE_STATE) -> windows::core::Result<()> {
+        self.emit(state_changed(unsafe { id_string(id) }, state));
+        Ok(())
+    }
+
+    fn OnDeviceAdded(&self, id: &PCWSTR) -> windows::core::Result<()> {
+        let device_id = unsafe { id_string(id) };
+        self.emit(Some(DeviceEvent::Added { device_id }));
+        Ok(())
+    }
+
+    fn OnDeviceRemoved(&self, id: &PCWSTR) -> windows::core::Result<()> {
+        let device_id = unsafe { id_string(id) };
+        self.emit(Some(DeviceEvent::Removed { device_id }));
+        Ok(())
+    }
+
+    fn OnDefaultDeviceChanged(
+        &self,
+        flow: EDataFlow,
+        role: ERole,
+        id: &PCWSTR,
+    ) -> windows::core::Result<()> {
+        let device_id = (!id.is_null()).then(|| unsafe { id_string(id) });
+        self.emit(default_changed(flow, role, device_id));
+        Ok(())
+    }
+
+    fn OnPropertyValueChanged(&self, id: &PCWSTR, key: &PROPERTYKEY) -> windows::core::Result<()> {
+        self.emit(Some(property_changed(unsafe { id_string(id) }, key)));
+        Ok(())
+    }
+}
+
+pub fn on_device_event<'e>(
+    env: &'e Env,
+    callback: Function<DeviceEvent, ()>,
+) -> Result<Function<'e, (), ()>> {
+    let com = com_guard()?;
+    let enumerator = device_enumerator()?;
+    let tsfn: DeviceTsfn = callback.build_threadsafe_function().build()?;
+    let client: IMMNotificationClient = DeviceNotifier { tsfn }.into();
+    unsafe { enumerator.RegisterEndpointNotificationCallback(&client) }
+        .map_err(|e| to_napi_err("failed to register device notifications", e))?;
+    subscribe(
+        env,
+        Subscription::new(com, move || unsafe {
+            // Failing here only means it's already gone; dropping `client` releases the
+            // threadsafe function either way.
+            let _ = enumerator.UnregisterEndpointNotificationCallback(&client);
+        }),
+    )
 }
 
 #[cfg(test)]

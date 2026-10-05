@@ -9,6 +9,9 @@ mod sessions;
 
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions, PropertyValue};
 use endpoint::{EndpointVolume, StepDirection};
+use events::device::DeviceEvent;
+use napi::bindgen_prelude::Function;
+use napi::Env;
 use napi_derive::napi;
 use sessions::{AudioSession, ListSessionsOptions, SessionTarget};
 use std::collections::HashMap;
@@ -150,4 +153,14 @@ pub fn step_endpoint_volume(
 #[napi]
 pub fn set_default_device(device_id: String, roles: Option<Vec<DeviceRole>>) -> napi::Result<bool> {
     policy_config::set_default_device(device_id, roles)
+}
+
+/// Subscribes to device add/remove/state/default/property changes. The subscription keeps
+/// the process alive until the returned `unsubscribe` is called.
+#[napi(strict, ts_return_type = "() => void")]
+pub fn on_device_event<'e>(
+    env: &'e Env,
+    callback: Function<DeviceEvent, ()>,
+) -> napi::Result<Function<'e, (), ()>> {
+    events::device::on_device_event(env, callback)
 }
