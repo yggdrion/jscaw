@@ -378,6 +378,9 @@ test('endpoint setters reject invalid arguments even for unknown devices', () =>
     assert.throws(() => setEndpointVolumeDb(db, BAD_ID));
   }
   assert.throws(() => stepEndpointVolume('sideways', BAD_ID));
+  for (const ch of [NaN, -1, 1.5, 2 ** 32]) {
+    assert.throws(() => setEndpointChannelVolume(ch, 0.5, BAD_ID), /channel must be/);
+  }
 });
 
 test('endpoint setters return false for unknown devices', () => {

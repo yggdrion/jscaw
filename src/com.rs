@@ -19,6 +19,18 @@ pub fn validate_volume(volume: f64) -> Result<()> {
     Ok(())
 }
 
+/// JS numbers arrive as `f64`: napi's `u32` conversion silently turns NaN into 0 and -1 into
+/// `u32::MAX`, so integer arguments are checked here.
+pub fn validate_index(name: &str, value: f64) -> Result<u32> {
+    if value.fract() != 0.0 || !(0.0..=u32::MAX as f64).contains(&value) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("{name} must be a non-negative integer, got {value}"),
+        ));
+    }
+    Ok(value as u32)
+}
+
 pub fn to_napi_err(context: &str, err: windows::core::Error) -> Error {
     Error::new(
         Status::GenericFailure,
@@ -144,7 +156,14 @@ pub unsafe fn take_co_string(raw: PWSTR) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_volume;
+    use super::{validate_index, validate_volume};
+
+    #[test]
+    fn validate_index_names_the_argument() {
+        assert_eq!(validate_index("channel", 2.0).unwrap(), 2);
+        let err = validate_index("channel", f64::NAN).unwrap_err();
+        assert!(err.reason.contains("channel must be"), "{}", err.reason);
+    }
 
     #[test]
     fn accepts_mid_range_volume() {
