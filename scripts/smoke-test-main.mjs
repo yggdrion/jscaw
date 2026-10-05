@@ -86,12 +86,14 @@ try {
   const testSrc = readFileSync(path.join(repoRoot, '__test__', 'addon.test.mjs'), 'utf8');
   const testForConsumer = testSrc.replace("from '../index.js'", `from '${rootPkg.name}'`);
   writeFileSync(path.join(consumer, 'addon.test.mjs'), testForConsumer);
+  // Already imports through the package name, so it checks the `jscaw/magic` export as-is.
+  cpSync(path.join(repoRoot, '__test__', 'magic.test.mjs'), path.join(consumer, 'magic.test.mjs'));
 
   step = 'run tests under bun';
-  run('bun', ['test', 'addon.test.mjs'], { cwd: consumer });
+  run('bun', ['test', 'addon.test.mjs', 'magic.test.mjs'], { cwd: consumer });
 
   step = 'run tests under node';
-  run('node', ['--test', 'addon.test.mjs'], { cwd: consumer });
+  run('node', ['--test', 'addon.test.mjs', 'magic.test.mjs'], { cwd: consumer });
 
   step = 'copy example';
   const exampleSrc = readFileSync(path.join(repoRoot, 'examples', 'basic.ts'), 'utf8');
