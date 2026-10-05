@@ -37,7 +37,7 @@ have merged.
 
 ## PR breakdown
 
-Dependency graph: `1 → {2, 3, 5, 6, 7, 8}`, `3 → {4, 10}`, `8 → {9, 10}`, `10 → 11`.
+Dependency graph: `1 → {2, 3, 5, 6, 7, 8}`, `3 → {4, 10}`, `8 → {9, 10}`, `10 → 11`, `11 → 12`.
 
 ### PR 1: Module split + device enumeration (pycaw `GetAllDevices`, `GetSpeakers`/`GetMicrophone`, `GetEndpointDataFlow`)
 
@@ -135,6 +135,34 @@ Dependency graph: `1 → {2, 3, 5, 6, 7, 8}`, `3 → {4, 10}`, `8 → {9, 10}`, 
   - Callbacks fire only for external changes unless `includeSelf` is set.
 - Skip pycaw's `MagicSession` subclassing; `onSessionEvent` already covers it.
 
+### PR 12: Demo app (`demo/`)
+
+- A local web UI that exercises every public jscaw API, so the whole library can be seen working end to end. Not published: it lives in `demo/`, outside `files`.
+- Built for Bun, with zero new dependencies:
+  - `demo/server.ts` uses `Bun.serve` with `routes` and an HTML import (`import index from './index.html'`). Bun bundles `demo/app.ts` and its CSS itself, so there is no build step and TypeScript runs directly.
+  - It imports the built addon from the repo root.
+  - Start it with `bun demo/server.ts` (the `"demo"` script runs `bun --hot demo/server.ts`). It prints `http://localhost:<port>` and binds to `127.0.0.1` only.
+- Transport: one Bun WebSocket at `/ws`, using `server.publish` to an `"events"` topic.
+  - The client sends `{ fn, args }` calls that map 1:1 onto jscaw functions through an allow-list (no `eval`), and gets `{ id, result | error }` back.
+  - Every `on*` subscription, plus polled meter values (~20 Hz), is published on the same socket.
+- Panels, one per capability:
+  - **Devices** (PRs 1, 6, 7, 8): render/capture lists with a state filter, default markers per role, "Make default" buttons (`setDefaultDevice`), an expandable property table (`getDeviceProperties`), and live add/remove/state/default updates from `onDeviceEvent`.
+  - **Endpoint volume** (PRs 2, 5, 9): master slider, dB input validated against `range`, mute, per-channel sliders, step up/down, a live peak meter, and updates from `onEndpointVolumeChange`, with external changes flagged via `selfInitiated`.
+  - **Sessions mixer** (PRs 3, 4, 5, 10): one row per session with volume/mute, per-channel sliders, a peak meter, state, editable display name/icon path/grouping, ducking opt-out, and an include-system-sounds toggle. Rows appear and disappear via `onSessionCreated`/`onSessionEvent`.
+  - **Duck log** (PR 10): an `onDuckEvent` feed.
+  - **Magic** (PR 11): type an exe name to `watchApp` it, then see aggregated volume/mute with toggle/step controls and its callback log.
+  - **Event log**: every event, timestamped.
+- Each panel shows the equivalent jscaw code snippet next to its controls, so the page doubles as copy-paste examples.
+- It degrades gracefully on machines with no audio devices: empty states, no errors.
+- Clean shutdown: SIGINT unsubscribes everything and calls `dispose()` on magic watchers before exit.
+- The README gains a short "Demo" section, and `package.json` gains the `demo` script.
+- Tests live in `demo/server.test.ts`, run by `bun test`. Each one starts the server with `port: 0` and checks that:
+  - `GET /` returns 200 HTML
+  - a WebSocket `{ fn: 'listDevices' }` call returns an array
+  - an unknown `fn` returns an error
+
+  It then calls `server.stop()`. The file stays out of `node --test` because it is Bun-only.
+
 ## Verification (per PR, run in its own session)
 
 - `cargo fmt --check`, `cargo test` for the Rust unit tests, `pnpm build`, `pnpm test`, `bun test`
@@ -144,4 +172,4 @@ Dependency graph: `1 → {2, 3, 5, 6, 7, 8}`, `3 → {4, 10}`, `8 → {9, 10}`, 
 
 ## Critical files
 
-`src/lib.rs`, `src/core_audio.rs` (split in PR 1), `Cargo.toml` (windows features), `__test__/addon.test.mjs`, `README.md`, `examples/`, `package.json` (PR 11 `exports`/`files`), `AGENTS.md` (update the module layout description in PR 1).
+`src/lib.rs`, `src/core_audio.rs` (split in PR 1), `Cargo.toml` (windows features), `__test__/addon.test.mjs`, `README.md`, `examples/`, `package.json` (PR 11 `exports`/`files`), `AGENTS.md` (update the module layout description in PR 1), `demo/` (PR 12).
