@@ -6,10 +6,11 @@ mod endpoint;
 mod policy_config;
 mod sessions;
 
-use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
+use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions, PropertyValue};
 use endpoint::{EndpointVolume, StepDirection};
 use napi_derive::napi;
 use sessions::{AudioSession, ListSessionsOptions, SessionTarget};
+use std::collections::HashMap;
 
 #[napi]
 pub fn list_sessions(options: Option<ListSessionsOptions>) -> napi::Result<Vec<AudioSession>> {
@@ -94,6 +95,13 @@ pub fn get_default_device(
 #[napi]
 pub fn get_device(id: String) -> napi::Result<Option<Device>> {
     devices::get_device(id)
+}
+
+#[napi(ts_return_type = "Record<string, string | number | boolean | null> | null")]
+pub fn get_device_properties(
+    device_id: String,
+) -> napi::Result<Option<HashMap<String, Option<PropertyValue>>>> {
+    devices::get_device_properties(device_id)
 }
 
 #[napi]

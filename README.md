@@ -32,6 +32,21 @@ getDevice(id); // null when the id is unknown
 `'render'` and the `'console'` role. `name` is the device's friendly name, falling back to its
 description. Machines with no audio devices get `[]`/`null` rather than errors.
 
+### Device properties
+
+```ts
+import { getDeviceProperties } from 'jscaw';
+
+getDeviceProperties(id); // null when the id is unknown
+// { '{A45C254E-DF1C-4EFD-8020-67D146A850E0} 14': 'Speakers (Realtek(R) Audio)',
+//   '{B3F8FA53-0004-438E-9003-51A46E139BFC} 6': 'Realtek(R) Audio', … }
+```
+
+This is the device's whole property store, with keys formatted `"{FMTID} pid"` exactly like
+pycaw's `AudioDevice.properties`. Strings, booleans and 32/64-bit integers are decoded, and
+CLSID values come back as braced GUID strings. Values of any other type are `null`.
+Properties that can't be read are left out.
+
 ## Default device
 
 ```ts
@@ -130,6 +145,7 @@ nothing is playing, and a microphone's meter only moves while some app is captur
 `getSessionPeak` takes a `SessionTarget` and returns `[]` when nothing matches.
 
 See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts),
+[`examples/device-properties.ts`](examples/device-properties.ts),
 [`examples/default-device.ts`](examples/default-device.ts),
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
 [`examples/sessions.ts`](examples/sessions.ts) and [`examples/meters.ts`](examples/meters.ts)

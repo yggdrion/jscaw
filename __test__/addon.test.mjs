@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   getDefaultDevice,
   getDevice,
+  getDeviceProperties,
   getEndpointPeak,
   getEndpointVolume,
   getSessionChannelVolumes,
@@ -318,6 +319,29 @@ test('getDevice returns null for unknown ids', () => {
   assert.equal(getDevice('{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), null);
   assert.equal(getDevice('not-a-device-id'), null);
   assert.equal(getDevice(''), null);
+});
+
+test('getDeviceProperties returns null for unknown ids', () => {
+  assert.equal(getDeviceProperties('{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), null);
+  assert.equal(getDeviceProperties('not-a-device-id'), null);
+  assert.equal(getDeviceProperties(''), null);
+});
+
+test('getDeviceProperties returns pycaw-keyed decoded values', () => {
+  const FRIENDLY_NAME = '{A45C254E-DF1C-4EFD-8020-67D146A850E0} 14';
+  for (const device of listDevices()) {
+    const props = getDeviceProperties(device.id);
+    assert.equal(typeof props, 'object');
+    assert.notEqual(props, null);
+    for (const [key, value] of Object.entries(props)) {
+      assert.match(key, /^\{[0-9A-F-]{36}\} \d+$/);
+      assert.ok(
+        value === null || ['string', 'number', 'boolean'].includes(typeof value),
+        `${key}: ${typeof value}`,
+      );
+    }
+    if (FRIENDLY_NAME in props) assert.equal(props[FRIENDLY_NAME], device.name);
+  }
 });
 
 test('getDevice round-trips ids from listDevices', () => {
