@@ -1,6 +1,6 @@
 use crate::com::{
-    activate, is_missing_device, resolve_device, take_co_string, to_napi_err, validate_volume,
-    ComGuard,
+    activate, is_missing_device, resolve_device, take_co_string, to_napi_err, validate_index,
+    validate_volume, ComGuard,
 };
 use napi::{Error, Result, Status};
 use napi_derive::napi;
@@ -195,18 +195,6 @@ enum Matcher {
     Pid(u32),
     ProcessName(String),
     InstanceId(String),
-}
-
-/// JS numbers arrive as `f64`: napi's `u32` conversion silently turns NaN into 0 and -1 into
-/// `u32::MAX`, so integer arguments are checked here.
-fn validate_index(name: &str, value: f64) -> Result<u32> {
-    if value.fract() != 0.0 || !(0.0..=u32::MAX as f64).contains(&value) {
-        return Err(Error::new(
-            Status::InvalidArg,
-            format!("{name} must be a non-negative integer, got {value}"),
-        ));
-    }
-    Ok(value as u32)
 }
 
 impl SessionTarget {
@@ -409,13 +397,6 @@ mod tests {
             assert!(t(Some(bad), None, None).into_matcher().is_err(), "{bad}");
         }
         assert!(t(Some(4294967295.0), None, None).into_matcher().is_ok());
-    }
-
-    #[test]
-    fn validate_index_names_the_argument() {
-        assert_eq!(validate_index("channel", 2.0).unwrap(), 2);
-        let err = validate_index("channel", f64::NAN).unwrap_err();
-        assert!(err.reason.contains("channel must be"), "{}", err.reason);
     }
 
     #[test]

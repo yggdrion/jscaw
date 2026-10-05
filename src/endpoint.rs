@@ -1,4 +1,6 @@
-use crate::com::{activate, resolve_device, to_napi_err, validate_volume, ComGuard};
+use crate::com::{
+    activate, resolve_device, to_napi_err, validate_index, validate_volume, ComGuard,
+};
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use std::ptr::null;
@@ -156,7 +158,8 @@ pub fn set_mute(muted: bool, device_id: Option<&str>) -> Result<bool> {
     }))
 }
 
-pub fn set_channel_volume(channel: u32, volume: f64, device_id: Option<&str>) -> Result<bool> {
+pub fn set_channel_volume(channel: f64, volume: f64, device_id: Option<&str>) -> Result<bool> {
+    let channel = validate_index("channel", channel)?;
     validate_volume(volume)?;
     applied(with_endpoint(device_id, |ep| {
         let count = unsafe { ep.GetChannelCount() }

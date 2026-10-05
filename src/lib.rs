@@ -112,7 +112,7 @@ pub fn set_endpoint_mute(muted: bool, device_id: Option<String>) -> napi::Result
 
 #[napi]
 pub fn set_endpoint_channel_volume(
-    channel: u32,
+    channel: f64,
     volume: f64,
     device_id: Option<String>,
 ) -> napi::Result<bool> {
