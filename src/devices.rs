@@ -1,9 +1,11 @@
 use crate::com::{
     default_device, device_enumerator, resolve_device, take_co_string, to_napi_err, ComGuard,
 };
+use napi::bindgen_prelude::Either3;
 use napi::Result;
 use napi_derive::napi;
-use windows::core::Interface;
+use std::collections::HashMap;
+use windows::core::{Interface, GUID};
 use windows::Win32::Devices::FunctionDiscovery::{
     PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName,
 };
@@ -13,7 +15,9 @@ use windows::Win32::Media::Audio::{
     IMMEndpoint, DEVICE_STATE, DEVICE_STATE_ACTIVE, DEVICE_STATE_DISABLED, DEVICE_STATE_NOTPRESENT,
     DEVICE_STATE_UNPLUGGED,
 };
+use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
 use windows::Win32::System::Com::STGM_READ;
+use windows::Win32::System::Variant::{VT_BOOL, VT_CLSID, VT_I4, VT_LPWSTR, VT_UI4, VT_UI8};
 
 #[napi(string_enum)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -168,6 +172,37 @@ fn to_device(device: &IMMDevice) -> Option<Device> {
     }
 }
 
+/// A decoded property value; unsupported PROPVARIANT types become `None` (JS `null`).
+pub type PropertyValue = Either3<String, f64, bool>;
+
+fn braced_guid(guid: &GUID) -> String {
+    format!("{{{guid:?}}}")
+}
+
+/// pycaw's `str(PROPERTYKEY)`: `"{FMTID} pid"` with an uppercase, braced GUID.
+fn property_key_name(key: &PROPERTYKEY) -> String {
+    format!("{} {}", braced_guid(&key.fmtid), key.pid)
+}
+
+fn decode(value: &PROPVARIANT) -> Option<PropertyValue> {
+    unsafe {
+        let inner = &value.Anonymous.Anonymous;
+        let data = &inner.Anonymous;
+        match inner.vt {
+            VT_LPWSTR if data.pwszVal.is_null() => Some(Either3::A(String::new())),
+            VT_LPWSTR => Some(Either3::A(String::from_utf16_lossy(data.pwszVal.as_wide()))),
+            VT_BOOL => Some(Either3::C(data.boolVal.as_bool())),
+            VT_UI4 => Some(Either3::B(data.ulVal.into())),
+            VT_I4 => Some(Either3::B(data.lVal.into())),
+            // ponytail: VT_UI8 > 2^53 loses precision as a JS number; switch to BigInt if a
+            // real property needs it.
+            VT_UI8 => Some(Either3::B(data.uhVal as f64)),
+            VT_CLSID => data.puuid.as_ref().map(|g| Either3::A(braced_guid(g))),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn com_guard() -> Result<ComGuard> {
     ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))
 }
@@ -217,10 +252,110 @@ pub fn get_device(id: String) -> Result<Option<Device>> {
     Ok(device.as_ref().and_then(to_device))
 }
 
+pub fn get_device_properties(id: String) -> Result<Option<HashMap<String, Option<PropertyValue>>>> {
+    let _com = com_guard()?;
+    let Some(device) = resolve_device(Some(&id))? else {
+        return Ok(None);
+    };
+    let store = unsafe { device.OpenPropertyStore(STGM_READ) }
+        .map_err(|e| to_napi_err("failed to open device property store", e))?;
+    let count = unsafe { store.GetCount() }
+        .map_err(|e| to_napi_err("failed to get device property count", e))?;
+    let mut props = HashMap::new();
+    for i in 0..count {
+        let mut key = PROPERTYKEY::default();
+        // Like pycaw, a key or value that fails to read is skipped.
+        if unsafe { store.GetAt(i, &mut key) }.is_err() {
+            continue;
+        }
+        let Ok(value) = (unsafe { store.GetValue(&key) }) else {
+            continue;
+        };
+        props.insert(property_key_name(&key), decode(&value));
+    }
+    Ok(Some(props))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::ManuallyDrop;
+    use windows::core::{GUID, PWSTR};
     use windows::Win32::Media::Audio::DEVICE_STATEMASK_ALL;
+    use windows::Win32::System::Com::StructuredStorage::{
+        PROPVARIANT_0, PROPVARIANT_0_0, PROPVARIANT_0_0_0,
+    };
+    use windows::Win32::System::Variant::{VARENUM, VT_CLSID, VT_LPWSTR};
+
+    /// Borrows `field` into a PROPVARIANT; `ManuallyDrop` so it's never `PropVariantClear`ed.
+    fn raw(vt: VARENUM, field: PROPVARIANT_0_0_0) -> ManuallyDrop<PROPVARIANT> {
+        ManuallyDrop::new(PROPVARIANT {
+            Anonymous: PROPVARIANT_0 {
+                Anonymous: ManuallyDrop::new(PROPVARIANT_0_0 {
+                    vt,
+                    wReserved1: 0,
+                    wReserved2: 0,
+                    wReserved3: 0,
+                    Anonymous: field,
+                }),
+            },
+        })
+    }
+
+    #[test]
+    fn property_key_name_matches_pycaw() {
+        assert_eq!(
+            property_key_name(&PKEY_Device_FriendlyName),
+            "{A45C254E-DF1C-4EFD-8020-67D146A850E0} 14"
+        );
+    }
+
+    #[test]
+    fn decode_handles_supported_types() {
+        let num = |v: &PROPVARIANT| match decode(v) {
+            Some(Either3::B(n)) => n,
+            _ => panic!("expected number"),
+        };
+        assert_eq!(num(&PROPVARIANT::from(7u32)), 7.0);
+        assert_eq!(num(&PROPVARIANT::from(-3i32)), -3.0);
+        assert_eq!(num(&PROPVARIANT::from(1u64 << 40)), (1u64 << 40) as f64);
+        assert!(matches!(
+            decode(&PROPVARIANT::from(true)),
+            Some(Either3::C(true))
+        ));
+        assert!(matches!(
+            decode(&PROPVARIANT::from(false)),
+            Some(Either3::C(false))
+        ));
+
+        let mut wide: Vec<u16> = "Speakers".encode_utf16().chain([0]).collect();
+        let s = raw(
+            VT_LPWSTR,
+            PROPVARIANT_0_0_0 {
+                pwszVal: PWSTR(wide.as_mut_ptr()),
+            },
+        );
+        assert!(matches!(decode(&s), Some(Either3::A(ref v)) if v == "Speakers"));
+
+        let mut guid = GUID::from_u128(0x1da5d803_d492_4edd_8c23_e0c0ffee7f0e);
+        let clsid = raw(VT_CLSID, PROPVARIANT_0_0_0 { puuid: &mut guid });
+        assert!(
+            matches!(decode(&clsid), Some(Either3::A(ref v)) if v == "{1DA5D803-D492-4EDD-8C23-E0C0FFEE7F0E}")
+        );
+        let null_clsid = raw(
+            VT_CLSID,
+            PROPVARIANT_0_0_0 {
+                puuid: std::ptr::null_mut(),
+            },
+        );
+        assert!(decode(&null_clsid).is_none());
+    }
+
+    #[test]
+    fn decode_returns_none_for_other_types() {
+        assert!(decode(&PROPVARIANT::default()).is_none());
+        assert!(decode(&PROPVARIANT::from(1.5f64)).is_none());
+    }
 
     #[test]
     fn state_mask_ors_requested_states() {
