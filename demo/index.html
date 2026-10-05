@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>jscaw demo</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f6f4;
+        --panel: #fff;
+        --border: #d9d9d4;
+        --muted: #6b6b66;
+        --accent: #2f6fde;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161616;
+          --panel: #1f1f1f;
+          --border: #333;
+          --muted: #999;
+          --accent: #6c9cf0;
+        }
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        font: 14px/1.4 system-ui, sans-serif;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+        gap: 16px;
+      }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 16px;
+        min-width: 0;
+      }
+      h1 { font-size: 20px; margin: 0 0 12px; }
+      h2 { font-size: 16px; margin: 0 0 8px; }
+      pre {
+        background: var(--bg);
+        padding: 8px;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-size: 12px;
+      }
+      .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; }
+      .item { border-top: 1px solid var(--border); padding: 8px 0; }
+      .muted { color: var(--muted); }
+      .tag { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--accent); color: #fff; }
+      .external { color: #d9822b; }
+      meter { width: 120px; }
+      input[type='range'] { width: 140px; }
+      input[type='text'] { width: 140px; }
+      table { font-size: 12px; border-collapse: collapse; width: 100%; }
+      td { border-top: 1px solid var(--border); padding: 2px 4px; word-break: break-all; }
+      .log { max-height: 240px; overflow-y: auto; font: 12px ui-monospace, monospace; }
+      #status { font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>jscaw demo <span id="status" class="muted">connecting…</span></h1>
+    <main>
+      <section id="devices">
+        <h2>Devices</h2>
+        <pre>listDevices({ flow: 'all', state: ['active'] })
+getDefaultDevice('render', 'console')
+setDefaultDevice(id)
+getDeviceProperties(id)
+onDeviceEvent((event) => …)</pre>
+        <div class="row">
+          <label>State
+            <select id="device-state">
+              <option value="active">active</option>
+              <option value="active,disabled,notPresent,unplugged">all</option>
+            </select>
+          </label>
+        </div>
+        <div id="device-list"></div>
+      </section>
+
+      <section id="endpoint">
+        <h2>Endpoint volume</h2>
+        <pre>getEndpointVolume(deviceId)
+setEndpointVolume(0.5, deviceId) / setEndpointVolumeDb(-10, deviceId)
+setEndpointMute(true, deviceId)
+setEndpointChannelVolume(0, 0.5, deviceId)
+stepEndpointVolume('up', deviceId)
+getEndpointPeak(deviceId)
+onEndpointVolumeChange((event) => …, deviceId)</pre>
+        <div class="row"><label>Device <select id="endpoint-device"></select></label></div>
+        <div id="endpoint-body"></div>
+        <div class="row">Peak <meter id="endpoint-peak" min="0" max="1" value="0"></meter></div>
+      </section>
+
+      <section id="sessions">
+        <h2>Sessions mixer</h2>
+        <pre>listSessions({ includeSystemSounds })
+setSessionVolume({ instanceId }, 0.5) / setSessionMute(…)
+setSessionChannelVolume({ instanceId }, 0, 0.5)
+setSessionDisplayName / setSessionIconPath / setSessionGroupingParam
+setSessionDuckingPreference({ instanceId }, true)
+getSessionPeak({ instanceId })
+onSessionCreated(cb) / onSessionEvent({ instanceId }, cb)</pre>
+        <div class="row"><label><input type="checkbox" id="system-sounds" /> include system sounds</label></div>
+        <div id="session-list"></div>
+      </section>
+
+      <section id="magic">
+        <h2>Magic</h2>
+        <pre>import { watchApp } from 'jscaw/magic';
+const app = watchApp('firefox.exe', { onVolume, onMute, onState, onSessionsChanged });
+app.volume = 0.5; app.toggleMute(); app.stepVolume(-0.1); app.dispose();</pre>
+        <form id="magic-form" class="row">
+          <input type="text" id="magic-exe" placeholder="firefox.exe" required />
+          <button>watchApp</button>
+        </form>
+        <div id="magic-list"></div>
+      </section>
+
+      <section id="duck">
+        <h2>Duck log</h2>
+        <pre>onDuckEvent((event) => …)</pre>
+        <div id="duck-log" class="log"></div>
+      </section>
+
+      <section id="events">
+        <h2>Event log</h2>
+        <div id="event-log" class="log"></div>
+      </section>
+    </main>
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
