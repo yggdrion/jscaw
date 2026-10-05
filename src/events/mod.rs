@@ -3,6 +3,7 @@
 
 pub mod device;
 pub mod endpoint;
+pub mod session;
 
 use crate::com::ComGuard;
 use napi::bindgen_prelude::{Function, JsValuesTupleIntoVec, Unknown};

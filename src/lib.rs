@@ -183,3 +183,51 @@ pub fn on_endpoint_volume_change<'e>(
 ) -> napi::Result<Option<Function<'e, (), ()>>> {
     events::endpoint::on_endpoint_volume_change(env, callback, device_id.as_deref())
 }
+
+/// Subscribes to new audio sessions on `deviceId` (default render device when omitted); the
+/// callback gets the session as `listSessions` reports it. Returns `null` when the device
+/// doesn't exist; otherwise the subscription keeps the process alive until `unsubscribe`.
+#[napi(
+    strict,
+    ts_args_type = "callback: (session: AudioSession) => void, deviceId?: string",
+    ts_return_type = "(() => void) | null"
+)]
+pub fn on_session_created<'e>(
+    env: &'e Env,
+    callback: Function<Unknown<'static>, ()>,
+    device_id: Option<String>,
+) -> napi::Result<Option<Function<'e, (), ()>>> {
+    events::session::on_session_created(env, callback, device_id.as_deref())
+}
+
+/// Subscribes to volume, mute, metadata, state and disconnect changes on the sessions that
+/// match `target` now (sessions created later aren't picked up). Returns `null` when nothing
+/// matches; otherwise the subscription keeps the process alive until `unsubscribe`.
+#[napi(
+    strict,
+    ts_args_type = "target: SessionTarget, callback: (event: SessionEvent) => void",
+    ts_return_type = "(() => void) | null"
+)]
+pub fn on_session_event<'e>(
+    env: &'e Env,
+    target: SessionTarget,
+    callback: Function<Unknown<'static>, ()>,
+) -> napi::Result<Option<Function<'e, (), ()>>> {
+    events::session::on_session_event(env, target, callback)
+}
+
+/// Subscribes to Windows ducking other sessions for a communications stream on `deviceId`
+/// (default render device when omitted). Returns `null` when the device doesn't exist;
+/// otherwise the subscription keeps the process alive until `unsubscribe`.
+#[napi(
+    strict,
+    ts_args_type = "callback: (event: DuckEvent) => void, deviceId?: string",
+    ts_return_type = "(() => void) | null"
+)]
+pub fn on_duck_event<'e>(
+    env: &'e Env,
+    callback: Function<Unknown<'static>, ()>,
+    device_id: Option<String>,
+) -> napi::Result<Option<Function<'e, (), ()>>> {
+    events::session::on_duck_event(env, callback, device_id.as_deref())
+}

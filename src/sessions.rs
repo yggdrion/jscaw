@@ -29,7 +29,7 @@ pub enum SessionState {
 }
 
 impl SessionState {
-    fn from_windows(state: AudioSessionState) -> Option<Self> {
+    pub(crate) fn from_windows(state: AudioSessionState) -> Option<Self> {
         match state {
             s if s == AudioSessionStateInactive => Some(Self::Inactive),
             s if s == AudioSessionStateActive => Some(Self::Active),
@@ -63,12 +63,12 @@ pub struct ListSessionsOptions {
     pub include_system_sounds: Option<bool>,
 }
 
-fn format_guid(guid: GUID) -> String {
+pub(crate) fn format_guid(guid: GUID) -> String {
     format!("{{{guid:?}}}")
 }
 
 /// Reads a COM-allocated string getter's result; empty when the getter failed.
-fn read_string(result: windows::core::Result<PWSTR>) -> String {
+pub(crate) fn read_string(result: windows::core::Result<PWSTR>) -> String {
     result
         .map(|raw| unsafe { take_co_string(raw) })
         .unwrap_or_default()
@@ -95,7 +95,7 @@ fn process_name_for_pid(pid: u32) -> Option<String> {
 }
 
 /// `Ok(None)` when the device is missing, disabled or unplugged.
-fn session_manager(device_id: Option<&str>) -> Result<Option<IAudioSessionManager2>> {
+pub(crate) fn session_manager(device_id: Option<&str>) -> Result<Option<IAudioSessionManager2>> {
     let Some(device) = resolve_device(device_id)? else {
         return Ok(None);
     };
@@ -147,13 +147,24 @@ pub fn list_sessions(options: Option<ListSessionsOptions>) -> Result<Vec<AudioSe
     let (device_id, include_system_sounds) = options.map_or((None, false), |o| {
         (o.device_id, o.include_system_sounds.unwrap_or(false))
     });
-    each_session(device_id.as_deref(), |control, pid| unsafe {
+    each_session(device_id.as_deref(), |control, pid| {
+        session_info(control, pid, include_system_sounds)
+    })
+}
+
+/// Reads one session as `listSessions` reports it. `None` for the system sounds session unless
+/// `include_system_sounds`, and for any other session whose process has exited or can't be opened.
+pub(crate) fn session_info(
+    control: &IAudioSessionControl2,
+    pid: u32,
+    include_system_sounds: bool,
+) -> Option<AudioSession> {
+    unsafe {
         // IsSystemSoundsSession returns S_OK for yes and S_FALSE for no.
         let is_system_sounds = control.IsSystemSoundsSession() == S_OK;
         if is_system_sounds && !include_system_sounds {
             return None;
         }
-        // Any other session whose process has exited or can't be opened is skipped, as before.
         let process_name = if is_system_sounds {
             String::new()
         } else {
@@ -176,7 +187,7 @@ pub fn list_sessions(options: Option<ListSessionsOptions>) -> Result<Vec<AudioSe
             instance_id: read_string(control.GetSessionInstanceIdentifier()),
             is_system_sounds,
         })
-    })
+    }
 }
 
 /// Exactly one of `pid`, `processName` or `instanceId`, plus an optional `deviceId`
@@ -254,6 +265,11 @@ fn map_matching<T>(
             None
         }
     })
+}
+
+/// The controls of every session matching `target`, e.g. to register notifications on.
+pub(crate) fn matching_sessions(target: SessionTarget) -> Result<Vec<IAudioSessionControl2>> {
+    map_matching(target, |control| Some(control.clone()))
 }
 
 /// Calls `apply` on every session matching `target`; returns how many accepted it.

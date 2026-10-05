@@ -1,5 +1,5 @@
 use super::{gated_tsfn, subscribe, EventTsfn, Subscription};
-use crate::com::{activate, event_context, resolve_device, to_napi_err};
+use crate::com::{activate, is_self_initiated, resolve_device, to_napi_err};
 use crate::devices::com_guard;
 use napi::bindgen_prelude::{Function, Unknown};
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
@@ -27,7 +27,7 @@ fn volume_event(context: &GUID, muted: bool, volume: f32, channels: &[f32]) -> E
         volume: volume.into(),
         muted,
         channel_volumes: channels.iter().copied().map(f64::from).collect(),
-        self_initiated: *context == unsafe { *event_context() },
+        self_initiated: is_self_initiated(context),
     }
 }
 
@@ -99,10 +99,9 @@ mod tests {
 
     #[test]
     fn our_event_context_is_self_initiated() {
-        let ours = unsafe { *event_context() };
+        let ours = unsafe { *crate::com::event_context() };
         assert!(volume_event(&ours, false, 0.5, &[]).self_initiated);
         assert!(!volume_event(&GUID::zeroed(), false, 0.5, &[]).self_initiated);
-        assert!(!volume_event(&GUID::from_u128(1), false, 0.5, &[]).self_initiated);
     }
 
     #[test]

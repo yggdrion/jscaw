@@ -167,6 +167,33 @@ of sessions changed, `0` when nothing matches or the device is missing.
 Channel volumes are 0..1 scalars relative to the session volume; `setSessionChannelVolume`
 skips (and doesn't count) sessions that don't have the requested channel.
 
+### Session events
+
+```ts
+import { onDuckEvent, onSessionCreated, onSessionEvent } from 'jscaw';
+
+onSessionCreated((session) => console.log(session)); // same shape as listSessions(), deviceId optional
+onSessionEvent({ processName: 'Discord.exe' }, (event) => {
+  // { type: 'volumeChanged', instanceId: '…', volume: 0.3, muted: false, selfInitiated: false }
+  console.log(event);
+});
+onDuckEvent((event) => console.log(event)); // { type: 'duck', instanceId: '…', activeSessionCount: 1 }
+```
+
+These are pycaw's `AudioSessionNotification`, `AudioSessionEvents` and
+`IAudioVolumeDuckNotification`. `onSessionEvent` events are `displayNameChanged`,
+`iconPathChanged`, `volumeChanged`, `channelVolumeChanged` (`changedChannel` is `null` when every
+channel changed), `groupingChanged`, `stateChanged` and `disconnected` (with a `reason`). Each
+carries the `instanceId` of the session that fired, and the change events carry `selfInitiated`
+like `onEndpointVolumeChange`. Duck events report the communications session that caused the
+ducking.
+
+`onSessionEvent` binds to the sessions matching its target when it's called; sessions created
+later aren't added, so pair it with `onSessionCreated` to follow an app. A session that expires
+or disconnects stays subscribed until you call `unsubscribe()`. All three return `null` when the
+device doesn't exist (or, for `onSessionEvent`, when nothing matches), and otherwise behave like
+`onDeviceEvent`: they keep the process alive until `unsubscribe()` and are cleaned up on exit.
+
 ## Peak meters
 
 ```ts
@@ -188,7 +215,8 @@ See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/d
 [`examples/device-events.ts`](examples/device-events.ts),
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
 [`examples/endpoint-volume-events.ts`](examples/endpoint-volume-events.ts),
-[`examples/sessions.ts`](examples/sessions.ts) and [`examples/meters.ts`](examples/meters.ts)
+[`examples/sessions.ts`](examples/sessions.ts),
+[`examples/session-events.ts`](examples/session-events.ts) and [`examples/meters.ts`](examples/meters.ts)
 for runnable examples.
 
 ## Scope
@@ -205,8 +233,7 @@ for runnable examples.
 
 ## v1 exclusions
 
-No audio playback. Session change notifications are not available yet; device and endpoint
-volume events are (see above).
+No audio playback.
 
 ## Releasing
 

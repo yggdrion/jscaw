@@ -12,7 +12,10 @@ import {
   listDevices,
   listSessions,
   onDeviceEvent,
+  onDuckEvent,
   onEndpointVolumeChange,
+  onSessionCreated,
+  onSessionEvent,
   setDefaultDevice,
   setEndpointChannelVolume,
   setEndpointMute,
@@ -680,5 +683,87 @@ test('onEndpointVolumeChange reports our own changes as selfInitiated', async (t
   } finally {
     unsubscribe();
     setEndpointVolume(before.volume, deviceId);
+  }
+});
+
+const UNKNOWN_DEVICES = ['{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}', 'not-a-device-id'];
+
+for (const [name, subscribe] of [
+  ['onSessionCreated', (cb, deviceId) => onSessionCreated(cb, deviceId)],
+  ['onDuckEvent', (cb, deviceId) => onDuckEvent(cb, deviceId)],
+]) {
+  test(`${name} returns null for unknown devices`, () => {
+    for (const id of UNKNOWN_DEVICES) assert.equal(subscribe(() => {}, id), null);
+  });
+
+  test(`${name} rejects a non-function callback`, () => {
+    assert.throws(() => subscribe(42));
+  });
+
+  test(`${name} returns an idempotent unsubscribe`, () => {
+    const unsubscribe = subscribe(() => {});
+    if (unsubscribe === null) return; // no default render device (e.g. CI)
+    assert.equal(typeof unsubscribe, 'function');
+    unsubscribe();
+    unsubscribe();
+  });
+
+  test(`a process exits cleanly while subscribed via ${name}`, () => {
+    const r = child(`m.${name}(() => {}); setTimeout(() => process.exit(0), 200);`);
+    assert.equal(r.status, 0, r.stderr);
+  });
+
+  test(`unsubscribing from ${name} lets the event loop drain`, () => {
+    const r = child(`const u = m.${name}(() => {}); setTimeout(() => u?.(), 100);`, 5000);
+    assert.equal(r.status, 0, r.stderr);
+  });
+}
+
+test('onSessionEvent rejects malformed targets and returns null when nothing matches', () => {
+  for (const target of BAD_TARGETS) assert.throws(() => onSessionEvent(target, () => {}), /exactly one/);
+  for (const target of UNMATCHED_TARGETS) assert.equal(onSessionEvent(target, () => {}), null);
+});
+
+test('onSessionEvent rejects a non-function callback', () => {
+  assert.throws(() => onSessionEvent({ processName: 'does-not-exist.exe' }, 42));
+});
+
+test('onSessionEvent returns an idempotent unsubscribe for a listed session', (t) => {
+  const [s] = listSessions();
+  if (!s) {
+    t.skip('no audio sessions to subscribe to');
+    return;
+  }
+  const unsubscribe = onSessionEvent({ instanceId: s.instanceId }, () => {});
+  assert.equal(typeof unsubscribe, 'function');
+  unsubscribe();
+  unsubscribe();
+});
+
+// Opt-in: mutates a real audio session, like the session setter tests above.
+test('onSessionEvent reports our own volume changes as selfInitiated', async (t) => {
+  const targetProcess = process.env.JSCAW_TEST_PROCESS;
+  if (!targetProcess) {
+    t.skip('set JSCAW_TEST_PROCESS to a running process name to run this check');
+    return;
+  }
+  const s = listSessions().find((x) => x.processName.toLowerCase() === targetProcess.toLowerCase());
+  assert.ok(s, `no active audio session found for ${targetProcess}`);
+  const target = { instanceId: s.instanceId };
+  const volume = s.volume > 0.5 ? 0.25 : 0.75;
+  const events = [];
+  const unsubscribe = onSessionEvent(target, (e) => events.push(e));
+  try {
+    assert.equal(setSessionVolume(target, volume), 1);
+    const matches = (e) => e.type === 'volumeChanged' && Math.abs(e.volume - volume) < 0.01;
+    for (let i = 0; i < 30 && !events.some(matches); i++) await new Promise((r) => setTimeout(r, 100));
+    const event = events.find(matches);
+    assert.ok(event, JSON.stringify(events));
+    assert.equal(event.selfInitiated, true);
+    assert.equal(event.instanceId, s.instanceId);
+    assert.equal(typeof event.muted, 'boolean');
+  } finally {
+    unsubscribe();
+    setSessionVolume(target, s.volume);
   }
 });
