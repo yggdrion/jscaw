@@ -244,6 +244,18 @@ See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/d
 [`examples/session-events.ts`](examples/session-events.ts) and [`examples/meters.ts`](examples/meters.ts)
 for runnable examples.
 
+## Demo
+
+A local web UI in [`demo/`](demo/) exercises every API above: devices and defaults, endpoint
+and session volume with live peak meters, every `on*` event stream, and `jscaw/magic`. Each panel
+shows the matching jscaw call. It needs [Bun](https://bun.sh) and a built addon, and isn't part
+of the published package.
+
+```sh
+pnpm build
+pnpm demo   # http://localhost:3000, bound to 127.0.0.1 (PORT=… to change)
+```
+
 ## Scope
 
 - **Windows only.** The package's `os` field is `["win32"]`; it won't install on macOS/Linux.
