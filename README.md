@@ -2,7 +2,7 @@
 
 Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list audio devices
 and active Core Audio sessions, switch the default device, control device (master) and
-per-process volume/mute, and read peak levels. Works from Node.js and Bun.
+per-process volume/mute, read peak levels, and watch for device changes. Works from Node.js and Bun.
 
 ```ts
 import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
@@ -59,6 +59,27 @@ setDefaultDevice(id, ['communications']); // only the default comms device
 Returns `false` when `id` is not a known device, and throws when Windows rejects the switch
 (e.g. a disabled device). Works for capture devices too. This relies on the undocumented
 `IPolicyConfig` Windows API (the one the Sound control panel uses), so it needs Windows 10+.
+
+## Device events
+
+```ts
+import { onDeviceEvent } from 'jscaw';
+
+const unsubscribe = onDeviceEvent((event) => {
+  // { type: 'added' | 'removed', deviceId }
+  // { type: 'stateChanged', deviceId, state }
+  // { type: 'defaultChanged', flow, role, deviceId } — deviceId is null when no default is left
+  // { type: 'propertyChanged', deviceId, key } — key as in getDeviceProperties
+  console.log(event);
+});
+unsubscribe(); // idempotent
+```
+
+This is pycaw's `MMNotificationClient`. Events arrive asynchronously on the JS thread.
+Like `fs.watch`, a live subscription keeps the process running until you call
+`unsubscribe()`. Exiting while subscribed is safe, because subscriptions are cleaned up on
+exit. An exception thrown from the callback is uncaught, as it would be from an
+`EventEmitter` listener.
 
 ## Endpoint volume
 
@@ -147,6 +168,7 @@ nothing is playing, and a microphone's meter only moves while some app is captur
 See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts),
 [`examples/device-properties.ts`](examples/device-properties.ts),
 [`examples/default-device.ts`](examples/default-device.ts),
+[`examples/device-events.ts`](examples/device-events.ts),
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
 [`examples/sessions.ts`](examples/sessions.ts) and [`examples/meters.ts`](examples/meters.ts)
 for runnable examples.
@@ -165,7 +187,8 @@ for runnable examples.
 
 ## v1 exclusions
 
-No change callbacks/notifications and no audio playback.
+No audio playback. Volume and session change notifications are not available yet; device
+events are (see above).
 
 ## Releasing
 
