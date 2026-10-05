@@ -3,6 +3,7 @@
 mod com;
 mod devices;
 mod endpoint;
+mod policy_config;
 mod sessions;
 
 use devices::{Device, DeviceFlow, DeviceRole, ListDevicesOptions};
@@ -135,4 +136,9 @@ pub fn step_endpoint_volume(
     device_id: Option<String>,
 ) -> napi::Result<bool> {
     endpoint::step(direction, device_id.as_deref())
+}
+
+#[napi]
+pub fn set_default_device(device_id: String, roles: Option<Vec<DeviceRole>>) -> napi::Result<bool> {
+    policy_config::set_default_device(device_id, roles)
 }

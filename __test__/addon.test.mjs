@@ -9,6 +9,7 @@ import {
   getSessionPeak,
   listDevices,
   listSessions,
+  setDefaultDevice,
   setEndpointChannelVolume,
   setEndpointMute,
   setEndpointVolume,
@@ -480,4 +481,36 @@ test('getSessionPeak returns one 0..1 peak per listed session', () => {
     assert.ok(result.length <= 1);
     result.forEach(assertPeak);
   }
+});
+
+const ROLES = ['console', 'multimedia', 'communications'];
+
+test('setDefaultDevice returns false for unknown ids', () => {
+  assert.equal(setDefaultDevice('{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), false);
+  assert.equal(setDefaultDevice(BAD_ID), false);
+  assert.equal(setDefaultDevice(''), false);
+});
+
+test('setDefaultDevice rejects bad roles', () => {
+  assert.throws(() => setDefaultDevice(BAD_ID, []), /roles must not be empty/);
+  assert.throws(() => setDefaultDevice(BAD_ID, ['sideways']));
+});
+
+// Opt-in: switches the real default device. Set JSCAW_TEST_DEVICE to an active device id.
+test('setDefaultDevice switches every role and can be restored', (t) => {
+  const deviceId = process.env.JSCAW_TEST_DEVICE;
+  const device = deviceId && getDevice(deviceId);
+  if (!device || device.state !== 'active') {
+    t.skip('set JSCAW_TEST_DEVICE to an active device id to run this check');
+    return;
+  }
+  const before = ROLES.map((role) => getDefaultDevice(device.flow, role));
+  try {
+    assert.equal(setDefaultDevice(deviceId), true);
+    for (const role of ROLES) assert.equal(getDefaultDevice(device.flow, role)?.id, deviceId, role);
+    assert.equal(setDefaultDevice(deviceId, ['communications']), true);
+  } finally {
+    ROLES.forEach((role, i) => before[i] && setDefaultDevice(before[i].id, [role]));
+  }
+  ROLES.forEach((role, i) => assert.equal(getDefaultDevice(device.flow, role)?.id, before[i]?.id, role));
 });
