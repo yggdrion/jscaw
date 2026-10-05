@@ -8,6 +8,7 @@ use std::path::Path;
 use std::ptr::null;
 use windows::core::{Interface, GUID, HSTRING, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, MAX_PATH, S_OK};
+use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
 use windows::Win32::Media::Audio::{
     AudioSessionState, AudioSessionStateActive, AudioSessionStateExpired,
     AudioSessionStateInactive, IAudioSessionControl2, IAudioSessionEnumerator,
@@ -286,6 +287,18 @@ pub fn get_channel_volumes(target: SessionTarget) -> Result<Vec<Vec<f64>>> {
         (0..channels.GetChannelCount().ok()?)
             .map(|i| channels.GetChannelVolume(i).ok().map(f64::from))
             .collect()
+    })
+}
+
+/// One 0..1 peak per matching session; sessions without a meter are skipped.
+pub fn get_peak(target: SessionTarget) -> Result<Vec<f64>> {
+    map_matching(target, |control| unsafe {
+        control
+            .cast::<IAudioMeterInformation>()
+            .ok()?
+            .GetPeakValue()
+            .ok()
+            .map(f64::from)
     })
 }
 

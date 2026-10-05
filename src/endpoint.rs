@@ -4,7 +4,8 @@ use crate::com::{
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use std::ptr::null;
-use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
+use windows::core::Interface;
+use windows::Win32::Media::Audio::Endpoints::{IAudioEndpointVolume, IAudioMeterInformation};
 
 #[napi(object)]
 pub struct ChannelVolume {
@@ -37,22 +38,42 @@ pub struct EndpointVolume {
     pub hardware_support: u32,
 }
 
-/// Runs `f` against the endpoint volume control of `device_id` (default render/console when
-/// `None`). Returns `Ok(None)` when the device doesn't exist or can't be activated.
-pub fn with_endpoint<T>(
+/// Runs `f` against interface `I` activated on `device_id` (default render/console when `None`).
+/// Returns `Ok(None)` when the device doesn't exist or can't be activated.
+fn with_activated<I: Interface, T>(
     device_id: Option<&str>,
-    f: impl FnOnce(&IAudioEndpointVolume) -> Result<T>,
+    context: &str,
+    f: impl FnOnce(&I) -> Result<T>,
 ) -> Result<Option<T>> {
     let _com = ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))?;
     let Some(device) = resolve_device(device_id)? else {
         return Ok(None);
     };
-    let Some(endpoint) =
-        activate::<IAudioEndpointVolume>(&device, "failed to activate endpoint volume")?
-    else {
+    let Some(iface) = activate::<I>(&device, context)? else {
         return Ok(None);
     };
-    f(&endpoint).map(Some)
+    f(&iface).map(Some)
+}
+
+/// Runs `f` against the endpoint volume control of `device_id`; see `with_activated`.
+pub fn with_endpoint<T>(
+    device_id: Option<&str>,
+    f: impl FnOnce(&IAudioEndpointVolume) -> Result<T>,
+) -> Result<Option<T>> {
+    with_activated(device_id, "failed to activate endpoint volume", f)
+}
+
+/// Current 0..1 peak sample of `device_id`; 0 while nothing is streaming.
+pub fn get_peak(device_id: Option<&str>) -> Result<Option<f64>> {
+    with_activated(
+        device_id,
+        "failed to activate peak meter",
+        |meter: &IAudioMeterInformation| {
+            unsafe { meter.GetPeakValue() }
+                .map(f64::from)
+                .map_err(|e| to_napi_err("failed to read endpoint peak", e))
+        },
+    )
 }
 
 fn volume_range(endpoint: &IAudioEndpointVolume) -> Result<(f32, f32, f32)> {
