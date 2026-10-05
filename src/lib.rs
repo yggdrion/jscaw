@@ -73,6 +73,11 @@ pub fn set_session_channel_volume(
 }
 
 #[napi]
+pub fn get_session_peak(target: SessionTarget) -> napi::Result<Vec<f64>> {
+    sessions::get_peak(target)
+}
+
+#[napi]
 pub fn list_devices(options: Option<ListDevicesOptions>) -> napi::Result<Vec<Device>> {
     devices::list_devices(options)
 }
@@ -93,6 +98,11 @@ pub fn get_device(id: String) -> napi::Result<Option<Device>> {
 #[napi]
 pub fn get_endpoint_volume(device_id: Option<String>) -> napi::Result<Option<EndpointVolume>> {
     endpoint::get_endpoint_volume(device_id.as_deref())
+}
+
+#[napi]
+pub fn get_endpoint_peak(device_id: Option<String>) -> napi::Result<Option<f64>> {
+    endpoint::get_peak(device_id.as_deref())
 }
 
 #[napi]

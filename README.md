@@ -1,7 +1,8 @@
 # jscaw
 
 Windows-only native addon (Node-API via [napi-rs](https://napi.rs)) to list audio devices
-and active Core Audio sessions, and control device (master) and per-process volume/mute. Works from Node.js and Bun.
+and active Core Audio sessions, control device (master) and per-process volume/mute, and read
+peak levels. Works from Node.js and Bun.
 
 ```ts
 import { listSessions, setProcessMute, setProcessVolume } from 'jscaw';
@@ -100,9 +101,25 @@ of sessions changed, `0` when nothing matches or the device is missing.
 Channel volumes are 0..1 scalars relative to the session volume; `setSessionChannelVolume`
 skips (and doesn't count) sessions that don't have the requested channel.
 
+## Peak meters
+
+```ts
+import { getEndpointPeak, getSessionPeak } from 'jscaw';
+
+getEndpointPeak(); // 0..1 peak of the default speakers, or null when there is no device
+getEndpointPeak(micId); // capture devices too
+getSessionPeak({ processName: 'Discord.exe' }); // [0.31, 0] — one peak per matching session
+```
+
+Peaks are instantaneous 0..1 samples, so poll them for a level meter. They read `0` while
+nothing is playing, and a microphone's meter only moves while some app is capturing from it.
+`getEndpointPeak` takes the same optional `deviceId` as the endpoint volume functions;
+`getSessionPeak` takes a `SessionTarget` and returns `[]` when nothing matches.
+
 See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/devices.ts),
-[`examples/endpoint-volume.ts`](examples/endpoint-volume.ts) and
-[`examples/sessions.ts`](examples/sessions.ts) for runnable examples.
+[`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
+[`examples/sessions.ts`](examples/sessions.ts) and [`examples/meters.ts`](examples/meters.ts)
+for runnable examples.
 
 ## Scope
 
@@ -118,8 +135,8 @@ See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/d
 
 ## v1 exclusions
 
-No audio routing (devices can be listed, not switched), no level meters, no change
-callbacks/notifications, and no audio playback.
+No audio routing (devices can be listed, not switched), no change callbacks/notifications,
+and no audio playback.
 
 ## Releasing
 

@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   getDefaultDevice,
   getDevice,
+  getEndpointPeak,
   getEndpointVolume,
   getSessionChannelVolumes,
+  getSessionPeak,
   listDevices,
   listSessions,
   setEndpointChannelVolume,
@@ -438,5 +440,44 @@ test('endpoint setters update a real device and can be restored', (t) => {
     setEndpointVolume(before.volume, deviceId);
     before.channels.forEach((ch, i) => setEndpointChannelVolume(i, ch.volume, deviceId));
     setEndpointMute(before.muted, deviceId);
+  }
+});
+
+const assertPeak = (p) => {
+  assert.equal(typeof p, 'number');
+  assert.ok(p >= 0 && p <= 1, `bad peak ${p}`);
+};
+
+test('getEndpointPeak returns a 0..1 number or null', () => {
+  const peak = getEndpointPeak();
+  if (peak === null) assert.equal(getDefaultDevice(), null);
+  else assertPeak(peak);
+  const mic = getDefaultDevice('capture');
+  if (mic !== null) assertPeak(getEndpointPeak(mic.id));
+});
+
+test('getEndpointPeak returns null for unknown ids', () => {
+  assert.equal(getEndpointPeak('{0.0.0.00000000}.{00000000-0000-0000-0000-000000000000}'), null);
+  assert.equal(getEndpointPeak(BAD_ID), null);
+  assert.equal(getEndpointPeak(''), null);
+});
+
+test('getEndpointPeak never throws for devices in any state', () => {
+  for (const device of listDevices({ state: STATES })) {
+    const peak = getEndpointPeak(device.id);
+    if (peak !== null) assertPeak(peak);
+  }
+});
+
+test('getSessionPeak rejects malformed targets and matches nothing cleanly', () => {
+  for (const target of BAD_TARGETS) assert.throws(() => getSessionPeak(target), /exactly one/);
+  for (const target of UNMATCHED_TARGETS) assert.deepEqual(getSessionPeak(target), []);
+});
+
+test('getSessionPeak returns one 0..1 peak per listed session', () => {
+  for (const s of listSessions({ includeSystemSounds: true })) {
+    const result = getSessionPeak({ instanceId: s.instanceId });
+    assert.ok(result.length <= 1);
+    result.forEach(assertPeak);
   }
 });
