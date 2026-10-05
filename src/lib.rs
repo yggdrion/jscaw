@@ -3,6 +3,7 @@
 mod com;
 mod devices;
 mod endpoint;
+mod events;
 mod policy_config;
 mod sessions;
 

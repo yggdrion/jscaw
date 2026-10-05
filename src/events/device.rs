@@ -1,0 +1,96 @@
+use crate::devices::{property_key_name, DeviceFlow, DeviceRole, DeviceState};
+use napi::bindgen_prelude::{Either, Null};
+use napi_derive::napi;
+use windows::Win32::Foundation::PROPERTYKEY;
+use windows::Win32::Media::Audio::{EDataFlow, ERole, DEVICE_STATE};
+
+/// pycaw's `MMNotificationClient` callbacks as one tagged union, discriminated by `type`.
+/// `defaultChanged.deviceId` is `null` when the flow/role no longer has a default device;
+/// `propertyChanged.key` is `"{FMTID} pid"`, the same keys `getDeviceProperties` returns.
+#[napi(discriminant_case = "camelCase")]
+#[derive(Debug)]
+pub enum DeviceEvent {
+    Added {
+        device_id: String,
+    },
+    Removed {
+        device_id: String,
+    },
+    StateChanged {
+        device_id: String,
+        state: DeviceState,
+    },
+    DefaultChanged {
+        flow: DeviceFlow,
+        role: DeviceRole,
+        device_id: Either<String, Null>,
+    },
+    PropertyChanged {
+        device_id: String,
+        key: String,
+    },
+}
+
+/// `None` for a state jscaw doesn't model; such events are dropped.
+fn state_changed(device_id: String, state: DEVICE_STATE) -> Option<DeviceEvent> {
+    Some(DeviceEvent::StateChanged {
+        device_id,
+        state: DeviceState::from_windows(state)?,
+    })
+}
+
+/// `None` for flows/roles jscaw doesn't model (e.g. `eAll`).
+fn default_changed(flow: EDataFlow, role: ERole, device_id: Option<String>) -> Option<DeviceEvent> {
+    Some(DeviceEvent::DefaultChanged {
+        flow: DeviceFlow::from_windows(flow)?,
+        role: DeviceRole::from_windows(role)?,
+        device_id: device_id.map_or(Either::B(Null), Either::A),
+    })
+}
+
+fn property_changed(device_id: String, key: &PROPERTYKEY) -> DeviceEvent {
+    DeviceEvent::PropertyChanged {
+        device_id,
+        key: property_key_name(key),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
+    use windows::Win32::Media::Audio::{
+        eAll, eCapture, eCommunications, eConsole, DEVICE_STATE, DEVICE_STATE_UNPLUGGED,
+    };
+
+    #[test]
+    fn maps_state_changes() {
+        assert!(matches!(
+            state_changed("x".into(), DEVICE_STATE_UNPLUGGED),
+            Some(DeviceEvent::StateChanged { device_id, state: DeviceState::Unplugged }) if device_id == "x"
+        ));
+        assert!(state_changed("x".into(), DEVICE_STATE(0x99)).is_none());
+    }
+
+    #[test]
+    fn maps_default_changes() {
+        assert!(matches!(
+            default_changed(eCapture, eCommunications, None),
+            Some(DeviceEvent::DefaultChanged {
+                flow: DeviceFlow::Capture,
+                role: DeviceRole::Communications,
+                device_id: Either::B(Null)
+            })
+        ));
+        assert!(default_changed(eAll, eConsole, Some("x".into())).is_none());
+    }
+
+    #[test]
+    fn maps_property_changes_to_pycaw_keys() {
+        assert!(matches!(
+            property_changed("x".into(), &PKEY_Device_FriendlyName),
+            DeviceEvent::PropertyChanged { device_id, key }
+                if device_id == "x" && key == "{A45C254E-DF1C-4EFD-8020-67D146A850E0} 14"
+        ));
+    }
+}
