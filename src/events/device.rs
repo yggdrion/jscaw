@@ -1,10 +1,12 @@
 use super::{subscribe, Subscription};
 use crate::com::{device_enumerator, to_napi_err};
 use crate::devices::{com_guard, property_key_name, DeviceFlow, DeviceRole, DeviceState};
-use napi::bindgen_prelude::{Either, Function, Null};
+use napi::bindgen_prelude::{Either, Function, Null, Unknown};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::{Env, Result};
 use napi_derive::napi;
+use std::cell::Cell;
+use std::rc::Rc;
 use windows::core::{implement, PCWSTR};
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::{
@@ -123,17 +125,31 @@ impl IMMNotificationClient_Impl for DeviceNotifier_Impl {
 
 pub fn on_device_event<'e>(
     env: &'e Env,
-    callback: Function<DeviceEvent, ()>,
+    callback: Function<Unknown<'static>, ()>,
 ) -> Result<Function<'e, (), ()>> {
     let com = com_guard()?;
     let enumerator = device_enumerator()?;
-    let tsfn: DeviceTsfn = callback.build_threadsafe_function().build()?;
+    // Events already queued when `unsubscribe()` runs are still dispatched by Node, so the
+    // threadsafe function targets this gate, which drops them once `active` is cleared.
+    let active = Rc::new(Cell::new(true));
+    let gate_active = active.clone();
+    let user = callback.create_ref()?;
+    let gate =
+        env.create_function_from_closure::<DeviceEvent, (), _>("onDeviceEvent", move |ctx| {
+            if gate_active.get() {
+                user.borrow_back(ctx.env)?
+                    .call(ctx.get::<Unknown<'static>>(0)?)?;
+            }
+            Ok(())
+        })?;
+    let tsfn: DeviceTsfn = gate.build_threadsafe_function().build()?;
     let client: IMMNotificationClient = DeviceNotifier { tsfn }.into();
     unsafe { enumerator.RegisterEndpointNotificationCallback(&client) }
         .map_err(|e| to_napi_err("failed to register device notifications", e))?;
     subscribe(
         env,
         Subscription::new(com, move || unsafe {
+            active.set(false);
             // Failing here only means it's already gone; dropping `client` releases the
             // threadsafe function either way.
             let _ = enumerator.UnregisterEndpointNotificationCallback(&client);

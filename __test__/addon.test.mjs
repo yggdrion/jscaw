@@ -601,3 +601,30 @@ test('onDeviceEvent reports default device changes', async (t) => {
     if (before) setDefaultDevice(before.id, ['console']);
   }
 });
+
+// Opt-in, like the test above: a burst of events must stop at the unsubscribe.
+test('no device events are delivered after unsubscribe', async (t) => {
+  const deviceId = process.env.JSCAW_TEST_DEVICE;
+  const device = deviceId && getDevice(deviceId);
+  const other = device && listDevices({ flow: device.flow }).find((d) => d.id !== deviceId);
+  if (!device || device.state !== 'active' || !other) {
+    t.skip('set JSCAW_TEST_DEVICE to an active device id (with a second active device) to run this check');
+    return;
+  }
+  const before = ROLES.map((role) => getDefaultDevice(device.flow, role));
+  let calls = 0;
+  const unsubscribe = onDeviceEvent(() => {
+    calls++;
+    unsubscribe();
+  });
+  try {
+    // Every role switch fires several events in one burst.
+    setDefaultDevice(other.id);
+    setDefaultDevice(deviceId);
+    await new Promise((r) => setTimeout(r, 1000));
+    assert.equal(calls, 1);
+  } finally {
+    unsubscribe();
+    ROLES.forEach((role, i) => before[i] && setDefaultDevice(before[i].id, [role]));
+  }
+});

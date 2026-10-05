@@ -52,7 +52,12 @@ fn remove(id: u32) {
 }
 
 fn clear() {
-    let subs = REGISTRY.with(|r| std::mem::take(&mut r.borrow_mut().subs));
+    let subs = REGISTRY.with(|r| {
+        let mut r = r.borrow_mut();
+        // The env is gone; a later env on this thread (e.g. an Electron reload) needs its own hook.
+        r.cleanup_hooked = false;
+        std::mem::take(&mut r.subs)
+    });
     drop(subs);
 }
 
@@ -74,4 +79,16 @@ pub fn subscribe(env: &Env, sub: Subscription) -> Result<Function<'_, (), ()>> {
         remove(id);
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clear_rearms_the_cleanup_hook_for_the_next_env() {
+        REGISTRY.with(|r| r.borrow_mut().cleanup_hooked = true);
+        clear();
+        assert!(!REGISTRY.with(|r| r.borrow().cleanup_hooked));
+    }
 }
