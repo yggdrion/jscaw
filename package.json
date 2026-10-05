@@ -9,6 +9,17 @@
   },
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./magic": {
+      "types": "./magic.d.mts",
+      "default": "./magic.mjs"
+    },
+    "./package.json": "./package.json"
+  },
   "os": [
     "win32"
   ],
@@ -26,7 +37,9 @@
   },
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "magic.mjs",
+    "magic.d.mts"
   ],
   "scripts": {
     "build": "napi build --platform --release",

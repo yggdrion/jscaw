@@ -194,6 +194,31 @@ or disconnects stays subscribed until you call `unsubscribe()`. All three return
 device doesn't exist (or, for `onSessionEvent`, when nothing matches), and otherwise behave like
 `onDeviceEvent`: they keep the process alive until `unsubscribe()` and are cleaned up on exit.
 
+### Magic (`jscaw/magic`)
+
+```ts
+import { watchApp } from 'jscaw/magic';
+
+const discord = watchApp('Discord.exe', {
+  onVolume: (volume) => console.log('volume', volume), // changes made outside jscaw only
+  onMute: (muted) => console.log('muted', muted),
+  onState: (state) => console.log(state), // 'active' | 'inactive'
+  onSessionsChanged: (sessions) => console.log(sessions.length, 'sessions'),
+});
+discord.volume = 0.5; // every Discord session
+discord.toggleMute();
+discord.stepVolume(-0.1);
+console.log(discord.volume, discord.mute); // loudest session's volume, any session muted
+discord.dispose();
+```
+
+pycaw's `magic.py`: `watchApp(exeNames, options)` follows every session of one or more
+executables on the default render device as they're created and expire, and controls them as
+one. Reads aggregate (the loudest volume; muted if any session is), writes fan out, and both are
+`null`/no-ops while the app has no sessions. Callbacks fire when the aggregate changes, and skip
+changes made through jscaw in this process unless `includeSelf: true`. Like the `on*` functions,
+it keeps the process alive until `dispose()`.
+
 ## Peak meters
 
 ```ts
