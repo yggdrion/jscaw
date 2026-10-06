@@ -1,8 +1,8 @@
 // COM method names (e.g. `SetDefaultEndpoint`) keep their Windows casing.
 #![allow(non_snake_case)]
 
-use crate::com::{resolve_device, to_napi_err};
-use crate::devices::{com_guard, DeviceRole};
+use crate::com::{com_guard, resolve_device, to_napi_err};
+use crate::devices::DeviceRole;
 use napi::{Error, Result, Status};
 use windows::core::{interface, IUnknown, IUnknown_Vtbl, GUID, HRESULT, HSTRING, PCWSTR};
 use windows::Win32::Media::Audio::ERole;

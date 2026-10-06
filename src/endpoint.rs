@@ -1,5 +1,6 @@
 use crate::com::{
-    activate, event_context, resolve_device, to_napi_err, validate_index, validate_volume, ComGuard,
+    activate, com_guard, event_context, resolve_device, to_napi_err, validate_index,
+    validate_volume,
 };
 use napi::{Error, Result, Status};
 use napi_derive::napi;
@@ -44,7 +45,7 @@ fn with_activated<I: Interface, T>(
     context: &str,
     f: impl FnOnce(&I) -> Result<T>,
 ) -> Result<Option<T>> {
-    let _com = ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))?;
+    let _com = com_guard()?;
     let Some(device) = resolve_device(device_id)? else {
         return Ok(None);
     };

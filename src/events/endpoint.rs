@@ -1,6 +1,5 @@
 use super::{gated_tsfn, subscribe, EventTsfn, Subscription};
-use crate::com::{activate, is_self_initiated, resolve_device, to_napi_err};
-use crate::devices::com_guard;
+use crate::com::{activate, com_guard, is_self_initiated, resolve_device, to_napi_err};
 use napi::bindgen_prelude::{Function, Unknown};
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi::{Env, Result};

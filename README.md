@@ -241,8 +241,8 @@ See [`examples/basic.ts`](examples/basic.ts), [`examples/devices.ts`](examples/d
 [`examples/endpoint-volume.ts`](examples/endpoint-volume.ts),
 [`examples/endpoint-volume-events.ts`](examples/endpoint-volume-events.ts),
 [`examples/sessions.ts`](examples/sessions.ts),
-[`examples/session-events.ts`](examples/session-events.ts) and [`examples/meters.ts`](examples/meters.ts)
-for runnable examples.
+[`examples/session-events.ts`](examples/session-events.ts), [`examples/meters.ts`](examples/meters.ts)
+and [`examples/magic.ts`](examples/magic.ts) for runnable examples.
 
 ## Demo
 
@@ -267,10 +267,11 @@ pnpm demo   # http://localhost:3000, bound to 127.0.0.1 (PORT=… to change)
   to *all* sessions owned by that process — a process that owns more than one session (e.g. Discord's voice and
   notification sessions) has all of them updated in one call, and the return value is the
   count of sessions that changed.
-
-## v1 exclusions
-
-No audio playback.
+- **Session notifications need an MTA thread.** jscaw initializes COM as MTA on the calling
+  thread. On a thread that's already STA (e.g. Electron's main process) every getter and setter
+  still works, but Windows never delivers `onSessionCreated` notifications there, so
+  `jscaw/magic` won't see new sessions either. Use jscaw from a worker or utility process.
+- **No audio playback or capture streams** (`IAudioClient`), as in pycaw.
 
 ## Releasing
 

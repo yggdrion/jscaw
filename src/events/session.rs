@@ -1,9 +1,8 @@
 use super::{gated_tsfn, subscribe, EventTsfn, Subscription};
-use crate::com::{is_self_initiated, to_napi_err};
-use crate::devices::com_guard;
+use crate::com::{com_guard, format_guid, is_self_initiated, to_napi_err};
 use crate::sessions::{
-    format_guid, matching_sessions, read_string, session_info, session_manager, AudioSession,
-    SessionState, SessionTarget,
+    matching_sessions, read_string, session_info, session_manager, AudioSession, SessionState,
+    SessionTarget,
 };
 use napi::bindgen_prelude::{Either, Function, JsValuesTupleIntoVec, Null, Unknown};
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
@@ -252,7 +251,7 @@ impl IAudioSessionEvents_Impl for SessionEventsNotifier_Impl {
         let event = unsafe {
             SessionEvent::GroupingChanged {
                 instance_id: self.instance_id.clone(),
-                grouping_param: param.as_ref().copied().map(format_guid).unwrap_or_default(),
+                grouping_param: param.as_ref().map(format_guid).unwrap_or_default(),
                 self_initiated: self_initiated(context),
             }
         };
