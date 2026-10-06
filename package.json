@@ -1,7 +1,7 @@
 {
   "name": "jscaw",
   "version": "0.3.1",
-  "description": "Windows-only native addon to list active Core Audio sessions and control per-process volume/mute",
+  "description": "Windows Core Audio for Node and Bun: devices, master and per-session volume, peak meters, default-device switching and change notifications (pycaw parity)",
   "license": "MIT",
   "repository": {
     "type": "git",

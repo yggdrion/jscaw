@@ -32,6 +32,11 @@ pub fn validate_index(name: &str, value: f64) -> Result<u32> {
     Ok(value as u32)
 }
 
+/// `{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}`, uppercase: how Windows (and pycaw) print GUIDs.
+pub fn format_guid(guid: &GUID) -> String {
+    format!("{{{guid:?}}}")
+}
+
 pub fn to_napi_err(context: &str, err: windows::core::Error) -> Error {
     Error::new(
         Status::GenericFailure,
@@ -71,6 +76,10 @@ impl ComGuard {
             Err(e) => Err(e),
         }
     }
+}
+
+pub fn com_guard() -> Result<ComGuard> {
+    ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))
 }
 
 impl Drop for ComGuard {

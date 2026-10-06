@@ -1,6 +1,6 @@
 use crate::com::{
-    activate, event_context, is_missing_device, resolve_device, take_co_string, to_napi_err,
-    validate_index, validate_volume, ComGuard,
+    activate, com_guard, event_context, format_guid, is_missing_device, resolve_device,
+    take_co_string, to_napi_err, validate_index, validate_volume,
 };
 use napi::{Error, Result, Status};
 use napi_derive::napi;
@@ -63,10 +63,6 @@ pub struct ListSessionsOptions {
     pub include_system_sounds: Option<bool>,
 }
 
-pub(crate) fn format_guid(guid: GUID) -> String {
-    format!("{{{guid:?}}}")
-}
-
 /// Reads a COM-allocated string getter's result; empty when the getter failed.
 pub(crate) fn read_string(result: windows::core::Result<PWSTR>) -> String {
     result
@@ -110,7 +106,7 @@ fn each_session<T>(
     device_id: Option<&str>,
     mut visit: impl FnMut(&IAudioSessionControl2, u32) -> Option<T>,
 ) -> Result<Vec<T>> {
-    let _com = ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))?;
+    let _com = com_guard()?;
     let Some(manager) = session_manager(device_id)? else {
         return Ok(Vec::new());
     };
@@ -181,7 +177,7 @@ pub(crate) fn session_info(
             icon_path: read_string(control.GetIconPath()),
             grouping_param: control
                 .GetGroupingParam()
-                .map(format_guid)
+                .map(|guid| format_guid(&guid))
                 .unwrap_or_default(),
             session_id: read_string(control.GetSessionIdentifier()),
             instance_id: read_string(control.GetSessionInstanceIdentifier()),
@@ -398,7 +394,7 @@ mod tests {
     #[test]
     fn guid_formats_braced_uppercase() {
         let guid = GUID::from_u128(0x6a1d3b2c_0000_4000_8000_00000000c0de);
-        assert_eq!(format_guid(guid), "{6A1D3B2C-0000-4000-8000-00000000C0DE}");
+        assert_eq!(format_guid(&guid), "{6A1D3B2C-0000-4000-8000-00000000C0DE}");
     }
 
     #[test]
@@ -439,7 +435,7 @@ mod tests {
             "6a1d3b2c-0000-4000-8000-00000000c0de",
             "{6a1d3b2c-0000-4000-8000-00000000c0de}",
         ] {
-            assert_eq!(format_guid(parse_guid(input).unwrap()), canonical);
+            assert_eq!(format_guid(&parse_guid(input).unwrap()), canonical);
         }
         for bad in [
             "",

@@ -48,3 +48,25 @@ test('jscaw errors come back as error messages', async () => {
   expect((await call('setEndpointVolume', 2)).error).toBeString();
 });
 
+test('malformed frames come back as errors', async () => {
+  await opened;
+  const reply = new Promise<{ error?: string }>((resolve) => {
+    const onMessage = (e: MessageEvent) => {
+      const msg = JSON.parse(e.data);
+      if ('type' in msg) return; // skip published events
+      ws.removeEventListener('message', onMessage);
+      resolve(msg);
+    };
+    ws.addEventListener('message', onMessage);
+  });
+  ws.send('not json');
+  expect((await reply).error).toBeString();
+});
+
+test('a foreign-origin WebSocket upgrade is refused', async () => {
+  const res = await fetch(`http://127.0.0.1:${server.port}/ws`, {
+    headers: { Origin: 'https://evil.example', Connection: 'Upgrade', Upgrade: 'websocket' },
+  });
+  expect(res.status).toBe(403);
+});
+
