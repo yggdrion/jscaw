@@ -74,11 +74,13 @@ export function watchApp(exeNames, options = {}) {
   listSessions().forEach(track);
   seeding = false;
 
-  // Our own writes: update the cache now so getters agree immediately.
+  // Our own writes: update the cache now so getters agree immediately. A session that just
+  // expired matches nothing (0), so its cache stays as is until its expiry event untracks it.
   const fanOut = (setter, value, patch) => {
     for (const entry of tracked.values()) {
-      setter({ instanceId: entry.session.instanceId }, value);
-      notify(() => (entry.session = { ...entry.session, ...patch }), false);
+      if (setter({ instanceId: entry.session.instanceId }, value) > 0) {
+        notify(() => (entry.session = { ...entry.session, ...patch }), false);
+      }
     }
   };
 

@@ -1,11 +1,12 @@
 use crate::com::{
-    default_device, device_enumerator, resolve_device, take_co_string, to_napi_err, ComGuard,
+    com_guard, default_device, device_enumerator, format_guid, resolve_device, take_co_string,
+    to_napi_err,
 };
 use napi::bindgen_prelude::Either3;
 use napi::Result;
 use napi_derive::napi;
 use std::collections::HashMap;
-use windows::core::{Interface, GUID};
+use windows::core::Interface;
 use windows::Win32::Devices::FunctionDiscovery::{
     PKEY_Device_DeviceDesc, PKEY_Device_FriendlyName,
 };
@@ -181,13 +182,9 @@ fn to_device(device: &IMMDevice) -> Option<Device> {
 /// A decoded property value; unsupported PROPVARIANT types become `None` (JS `null`).
 pub type PropertyValue = Either3<String, f64, bool>;
 
-fn braced_guid(guid: &GUID) -> String {
-    format!("{{{guid:?}}}")
-}
-
 /// pycaw's `str(PROPERTYKEY)`: `"{FMTID} pid"` with an uppercase, braced GUID.
 pub(crate) fn property_key_name(key: &PROPERTYKEY) -> String {
-    format!("{} {}", braced_guid(&key.fmtid), key.pid)
+    format!("{} {}", format_guid(&key.fmtid), key.pid)
 }
 
 fn decode(value: &PROPVARIANT) -> Option<PropertyValue> {
@@ -203,14 +200,10 @@ fn decode(value: &PROPVARIANT) -> Option<PropertyValue> {
             // ponytail: VT_UI8 > 2^53 loses precision as a JS number; switch to BigInt if a
             // real property needs it.
             VT_UI8 => Some(Either3::B(data.uhVal as f64)),
-            VT_CLSID => data.puuid.as_ref().map(|g| Either3::A(braced_guid(g))),
+            VT_CLSID => data.puuid.as_ref().map(|g| Either3::A(format_guid(g))),
             _ => None,
         }
     }
-}
-
-pub(crate) fn com_guard() -> Result<ComGuard> {
-    ComGuard::new().map_err(|e| to_napi_err("failed to initialize COM", e))
 }
 
 pub fn list_devices(options: Option<ListDevicesOptions>) -> Result<Vec<Device>> {

@@ -79,7 +79,16 @@ export function startDemo(port = 3000) {
     port,
     routes: { '/': index },
     fetch(req, srv) {
-      if (new URL(req.url).pathname === '/ws' && srv.upgrade(req)) return;
+      if (new URL(req.url).pathname === '/ws') {
+        // Browsers don't apply CORS to WebSockets: without this, any site the user visits (or a
+        // DNS-rebound host) could drive the RPC. Non-browser clients send no Origin.
+        const origin = req.headers.get('origin');
+        const ours = [`http://127.0.0.1:${srv.port}`, `http://localhost:${srv.port}`];
+        if (origin !== null && !ours.includes(origin)) {
+          return new Response('forbidden', { status: 403 });
+        }
+        if (srv.upgrade(req)) return;
+      }
       return new Response('not found', { status: 404 });
     },
     websocket: {
@@ -87,8 +96,11 @@ export function startDemo(port = 3000) {
         ws.subscribe('events');
       },
       message(ws, raw) {
-        const { id, fn, args = [] } = JSON.parse(String(raw));
+        let id: unknown;
         try {
+          const msg = JSON.parse(String(raw));
+          id = msg.id;
+          const { fn, args = [] } = msg;
           if (!Object.hasOwn(rpc, fn)) throw new Error(`unknown fn: ${fn}`);
           ws.send(JSON.stringify({ id, result: rpc[fn](...args) ?? null }));
         } catch (e) {

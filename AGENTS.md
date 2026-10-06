@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-The native addon lives in `src/`: `lib.rs` exposes the Node-API surface; `com.rs` holds COM init, error mapping, device resolution and endpoint activation; `sessions.rs` holds audio-session enumeration, `SessionTarget` matching and per-session volume/mute/channel-volume/peak/metadata getters and setters; `devices.rs` holds endpoint device enumeration; `endpoint.rs` holds endpoint (master) volume and the endpoint peak meter (all setters pass `com.rs`'s per-process event context, so notifications can report `selfInitiated`); `policy_config.rs` holds default-device switching via the undocumented `IPolicyConfig`; `events/` holds the shared `on*` subscription registry (`mod.rs`: COM registrations unregistered on `unsubscribe()` or env teardown), device notifications (`device.rs`), endpoint volume notifications (`endpoint.rs`) and session created/change/duck notifications (`session.rs`). `magic.mjs`/`magic.d.mts` are the hand-written (not napi-generated) `jscaw/magic` layer, exported via `package.json` `exports` and built only on the public native API. `build.rs` configures napi-rs builds. JavaScript integration tests are in `__test__/addon.test.mjs` and `__test__/magic.test.mjs` (which imports through the package's own name, `jscaw/magic`), `examples/basic.ts` demonstrates the public API, and `demo/` is an unpublished Bun web UI over every API (`pnpm demo`; its `server.test.ts` runs only under `bun test`, which is why `pnpm test` pins `__test__/*.test.mjs`). Platform package metadata lives under `npm/win32-*-msvc/`. Release documentation and automation are in `docs/RELEASING.md`, `scripts/release.mjs`, and `.github/workflows/CI.yml`.
+The native addon lives in `src/`: `lib.rs` exposes the Node-API surface; `com.rs` holds COM init, error mapping, device resolution and endpoint activation; `sessions.rs` holds audio-session enumeration, `SessionTarget` matching and per-session volume/mute/channel-volume/peak/metadata getters and setters; `devices.rs` holds endpoint device enumeration; `endpoint.rs` holds endpoint (master) volume and the endpoint peak meter (all setters pass `com.rs`'s per-process event context, so notifications can report `selfInitiated`); `policy_config.rs` holds default-device switching via the undocumented `IPolicyConfig`; `events/` holds the shared `on*` subscription registry (`mod.rs`: COM registrations unregistered on `unsubscribe()` or env teardown), device notifications (`device.rs`), endpoint volume notifications (`endpoint.rs`) and session created/change/duck notifications (`session.rs`). `magic.mjs`/`magic.d.mts` are the hand-written (not napi-generated) `jscaw/magic` layer, exported via `package.json` `exports` and built only on the public native API. `build.rs` configures napi-rs builds. JavaScript integration tests are in `__test__/addon.test.mjs` and `__test__/magic.test.mjs` (which imports through the package's own name, `jscaw/magic`), `examples/*.ts` demonstrate the public API (one file per feature area), and `demo/` is an unpublished Bun web UI over every API (`pnpm demo`; its `server.test.ts` runs only under `bun test`, which is why `pnpm test` pins `__test__/*.test.mjs`). Platform package metadata lives under `npm/win32-*-msvc/`. Release documentation and automation are in `docs/RELEASING.md`, `scripts/release.mjs`, and `.github/workflows/CI.yml`.
 
 ## Build, Test, and Development Commands
 
@@ -10,7 +10,8 @@ The native addon lives in `src/`: `lib.rs` exposes the Node-API surface; `com.rs
 - `pnpm build` creates an optimized native addon for the current Windows platform.
 - `pnpm build:debug` builds faster with debug symbols for local development.
 - `pnpm test` runs the Node.js test suite against the built addon.
-- `bun test` runs the same integration tests under Bun.
+- `bun test` runs the same integration tests under Bun, plus `demo/server.test.ts`.
+- `cargo test` runs the Rust unit tests (validators, enum/PROPVARIANT mapping, event payloads); CI runs it with `cargo fmt --check`.
 - `pnpm smoke-test` builds `main`, packs it into the tarballs `npm publish` would produce, and installs+tests them via `bun add` in a scratch consumer project. Run before cutting a release — see "Pre-Release Smoke Test" below.
 - `cargo fmt --check` verifies Rust formatting; use `cargo fmt` to apply it.
 
@@ -22,7 +23,7 @@ Use Rust 2021 conventions and rustfmt defaults (four-space indentation, `snake_c
 
 ## Testing Guidelines
 
-Tests use the built-in `node:test` runner with `node:assert/strict`. Name files `*.test.mjs` and test observable API behavior, including invalid inputs and unmatched processes. Tests must not mutate real sessions by default. The live check requires `JSCAW_TEST_PROCESS` and must restore volume and mute state in `finally`. No coverage threshold is configured; add focused regression tests for changed behavior.
+Tests use the built-in `node:test` runner with `node:assert/strict`. Name files `*.test.mjs` and test observable API behavior, including invalid inputs and unmatched processes. Tests must not mutate real sessions by default. Live checks are opt-in: `JSCAW_TEST_PROCESS` (a running process with an audio session) gates session mutations, and `JSCAW_TEST_DEVICE` (a device id from `listDevices()`) gates endpoint volume, default-device and device-event checks. They must restore every state they change in `finally`. No coverage threshold is configured; add focused regression tests for changed behavior.
 
 ## Pre-Release Smoke Test
 
