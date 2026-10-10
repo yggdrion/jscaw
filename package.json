@@ -53,5 +53,5 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.8.6"
   },
-  "packageManager": "pnpm@12.9.1"
+  "packageManager": "pnpm@12.11.2"
 }
