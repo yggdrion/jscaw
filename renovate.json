@@ -15,6 +15,12 @@
       "description": "windows' #[interface]/#[implement] macros expand to ::windows_core paths, so both must match",
       "matchPackageNames": ["windows", "windows-core"],
       "groupName": "windows-rs"
+    },
+    {
+      "description": "windows-core must match the windows crate version (windows is at 0.62.x; 0.100 breaks #[implement])",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["windows-core"],
+      "allowedVersions": "/^0\\.62\\./"
     }
   ]
 }
