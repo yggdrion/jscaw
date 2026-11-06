@@ -1,6 +1,6 @@
 {
   "name": "jscaw",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "description": "Windows Core Audio for Node and Bun: devices, master and per-session volume, peak meters, default-device switching and change notifications (pycaw parity)",
   "license": "MIT",
   "repository": {
@@ -53,5 +53,5 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.8.6"
   },
-  "packageManager": "pnpm@12.9.1"
+  "packageManager": "pnpm@12.18.0"
 }
